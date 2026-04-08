@@ -1,0 +1,506 @@
+"use client";
+
+import { ManagerUserSummary, UserRole } from "@kagu/contracts";
+import { FormEvent, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { apiFetch } from "../lib/api";
+import { formatDisplayDate } from "../lib/date";
+import { useAuth } from "./auth-provider";
+import { ManagerDrawer } from "./manager-ui";
+
+type UserFormState = {
+  displayName: string;
+  username: string;
+  password: string;
+  role: UserRole;
+};
+
+type UserEditState = {
+  displayName: string;
+  username: string;
+  password: string;
+  role: UserRole;
+  isActive: boolean;
+};
+
+const emptyUserForm: UserFormState = {
+  displayName: "",
+  username: "",
+  password: "",
+  role: "FIELD"
+};
+
+const emptyUserEdit: UserEditState = {
+  displayName: "",
+  username: "",
+  password: "",
+  role: "FIELD",
+  isActive: true
+};
+
+export function ManagerUsersModule() {
+  const { token } = useAuth();
+  const [users, setUsers] = useState<ManagerUserSummary[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"active" | "inactive" | "all">("active");
+  const [roleFilter, setRoleFilter] = useState<"" | UserRole>("");
+  const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
+  const [createDraft, setCreateDraft] = useState<UserFormState>(emptyUserForm);
+  const [editDraft, setEditDraft] = useState<UserEditState>(emptyUserEdit);
+  const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
+  const [detailDrawerOpen, setDetailDrawerOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [createMessage, setCreateMessage] = useState<string | null>(null);
+  const [detailMessage, setDetailMessage] = useState<string | null>(null);
+  const [savingCreate, setSavingCreate] = useState(false);
+  const [savingDetail, setSavingDetail] = useState(false);
+  const [removingUser, setRemovingUser] = useState(false);
+
+  const selectedUser = useMemo(
+    () => users.find((user) => user.id === selectedUserId) ?? null,
+    [selectedUserId, users]
+  );
+
+  useEffect(() => {
+    if (!token) {
+      return;
+    }
+    setLoading(true);
+    void refreshUsers(token)
+      .catch((error) => {
+        setMessage(error instanceof Error ? error.message : "Kullanici listesi yuklenemedi.");
+      })
+      .finally(() => setLoading(false));
+  }, [deferredQuery, roleFilter, statusFilter, token]);
+
+  useEffect(() => {
+    if (!selectedUser) {
+      setEditDraft(emptyUserEdit);
+      return;
+    }
+    setEditDraft({
+      displayName: selectedUser.displayName,
+      username: selectedUser.username,
+      password: "",
+      role: selectedUser.role,
+      isActive: selectedUser.isActive
+    });
+  }, [selectedUser]);
+
+  useEffect(() => {
+    if (!createDrawerOpen) {
+      setCreateMessage(null);
+    }
+  }, [createDrawerOpen]);
+
+  useEffect(() => {
+    if (!detailDrawerOpen) {
+      setDetailMessage(null);
+    }
+  }, [detailDrawerOpen]);
+
+  async function refreshUsers(currentToken: string) {
+    const params = new URLSearchParams();
+    params.set("status", statusFilter);
+    if (roleFilter) {
+      params.set("role", roleFilter);
+    }
+    if (deferredQuery.trim()) {
+      params.set("query", deferredQuery.trim());
+    }
+    const data = await apiFetch<ManagerUserSummary[]>(`/users?${params.toString()}`, {}, currentToken);
+    setUsers(data);
+  }
+
+  function openUserDetail(userId: string) {
+    setSelectedUserId(userId);
+    setDetailDrawerOpen(true);
+  }
+
+  async function handleCreateUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!token) {
+      setCreateMessage("Oturum bulunamadi.");
+      return;
+    }
+    if (createDraft.password.trim().length < 6) {
+      setCreateMessage("Sifre en az 6 karakter olmalidir.");
+      return;
+    }
+    try {
+      setSavingCreate(true);
+      setCreateMessage(null);
+      await apiFetch<ManagerUserSummary>(
+        "/users",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            displayName: createDraft.displayName.trim(),
+            username: createDraft.username.trim(),
+            password: createDraft.password,
+            role: createDraft.role
+          })
+        },
+        token
+      );
+      setCreateDraft(emptyUserForm);
+      setCreateDrawerOpen(false);
+      setMessage("Yeni kullanici olusturuldu.");
+      await refreshUsers(token);
+    } catch (error) {
+      setCreateMessage(error instanceof Error ? error.message : "Kullanici olusturulamadi.");
+    } finally {
+      setSavingCreate(false);
+    }
+  }
+
+  async function handleUpdateUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!token || !selectedUser) {
+      setDetailMessage("Kullanici secimi bulunamadi.");
+      return;
+    }
+    try {
+      setSavingDetail(true);
+      setDetailMessage(null);
+      const updated = await apiFetch<ManagerUserSummary>(
+        `/users/${selectedUser.id}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            displayName: editDraft.displayName,
+            username: editDraft.username,
+            password: editDraft.password || undefined,
+            role: editDraft.role,
+            isActive: editDraft.isActive
+          })
+        },
+        token
+      );
+      setMessage("Kullanici bilgileri guncellendi.");
+      await refreshUsers(token);
+      setSelectedUserId(updated.id);
+      setDetailDrawerOpen(false);
+    } catch (error) {
+      setDetailMessage(error instanceof Error ? error.message : "Kullanici guncellenemedi.");
+    } finally {
+      setSavingDetail(false);
+    }
+  }
+
+  async function toggleUserActive() {
+    if (!token || !selectedUser) {
+      setDetailMessage("Kullanici secimi bulunamadi.");
+      return;
+    }
+    try {
+      setSavingDetail(true);
+      setDetailMessage(null);
+      await apiFetch<ManagerUserSummary>(
+        `/users/${selectedUser.id}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ isActive: !selectedUser.isActive })
+        },
+        token
+      );
+      setMessage(selectedUser.isActive ? "Kullanici pasife alindi." : "Kullanici aktif edildi.");
+      await refreshUsers(token);
+    } catch (error) {
+      setDetailMessage(error instanceof Error ? error.message : "Durum guncellenemedi.");
+    } finally {
+      setSavingDetail(false);
+    }
+  }
+
+  async function deleteUser() {
+    if (!token || !selectedUser) {
+      setDetailMessage("Kullanici secimi bulunamadi.");
+      return;
+    }
+    if (!window.confirm(`${selectedUser.displayName} icin silme/pasifleme islemi uygulansin mi?`)) {
+      return;
+    }
+    try {
+      setRemovingUser(true);
+      setDetailMessage(null);
+      const result = await apiFetch<{ mode: "deleted" | "deactivated" }>(
+        `/users/${selectedUser.id}`,
+        { method: "DELETE" },
+        token
+      );
+      setMessage(
+        result.mode === "deleted"
+          ? "Kullanici silindi."
+          : "Gecmis korumasi nedeniyle kullanici pasife alindi."
+      );
+      setDetailDrawerOpen(false);
+      await refreshUsers(token);
+    } catch (error) {
+      setDetailMessage(error instanceof Error ? error.message : "Kullanici kaldirilamadi.");
+    } finally {
+      setRemovingUser(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="manager-module manager-stack-layout">
+        <section className="manager-command-surface manager-command-surface-left">
+          <div className="manager-command-copy">
+            <span className="manager-command-kicker">Kullanicilar</span>
+            <h2 className="manager-block-title">Ekip hesaplari</h2>
+          </div>
+          <div className="manager-command-controls manager-command-controls-left">
+            <div className="manager-inline-actions">
+              <input
+                className="input"
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Ad veya kullanici ara"
+                value={query}
+              />
+              <select
+                className="select"
+                onChange={(event) => setRoleFilter((event.target.value as UserRole | "") || "")}
+                value={roleFilter}
+              >
+                <option value="">Tum roller</option>
+                <option value="FIELD">Saha</option>
+                <option value="MANAGER">Yonetici</option>
+              </select>
+              <select
+                className="select"
+                onChange={(event) =>
+                  setStatusFilter(event.target.value as "active" | "inactive" | "all")
+                }
+                value={statusFilter}
+              >
+                <option value="active">Aktif</option>
+                <option value="inactive">Pasif</option>
+                <option value="all">Tum hesaplar</option>
+              </select>
+            </div>
+            <div className="manager-inline-actions">
+              <button className="button" onClick={() => setCreateDrawerOpen(true)} type="button">
+                Yeni Kullanici
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {message ? <div className="alert">{message}</div> : null}
+
+        <section className="manager-surface-card">
+          <div className="manager-section-head compact">
+            <div>
+              <span className="manager-section-kicker">Kullanici listesi</span>
+              <h3 className="manager-section-title">Excel benzeri satir gorunumu</h3>
+            </div>
+            <span className="manager-mini-chip">
+              {loading ? "Yukleniyor..." : `${users.length} hesap`}
+            </span>
+          </div>
+
+          {!users.length ? (
+            <div className="empty">Filtreye uygun kullanici bulunamadi.</div>
+          ) : (
+            <div className="manager-table-wrap">
+              <table className="manager-table">
+                <thead>
+                  <tr>
+                    <th>Ad Soyad</th>
+                    <th>Kullanici</th>
+                    <th>Rol</th>
+                    <th>Durum</th>
+                    <th>Aktif Atama</th>
+                    <th>Acik Oturum</th>
+                    <th>Kayit Tarihi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((user) => (
+                    <tr
+                      className="manager-table-clickable"
+                      key={user.id}
+                      onClick={() => openUserDetail(user.id)}
+                    >
+                      <td>{user.displayName}</td>
+                      <td>@{user.username}</td>
+                      <td>{user.role === "FIELD" ? "Saha" : "Yonetici"}</td>
+                      <td>{user.isActive ? "Aktif" : "Pasif"}</td>
+                      <td>{user.assignmentCount ?? 0}</td>
+                      <td>{user.openSessionCount ?? 0}</td>
+                      <td>{formatDisplayDate(user.createdAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </div>
+
+      <ManagerDrawer
+        onClose={() => setCreateDrawerOpen(false)}
+        open={createDrawerOpen}
+        title="Yeni Kullanici"
+      >
+        <form className="stack" onSubmit={handleCreateUser}>
+          {createMessage ? <div className="alert">{createMessage}</div> : null}
+          <input
+            className="input"
+            onChange={(event) =>
+              setCreateDraft((current) => ({ ...current, displayName: event.target.value }))
+            }
+            placeholder="Ad soyad"
+            required
+            value={createDraft.displayName}
+          />
+          <div className="split two">
+            <select
+              className="select"
+              onChange={(event) =>
+                setCreateDraft((current) => ({
+                  ...current,
+                  role: event.target.value as UserRole
+                }))
+              }
+              value={createDraft.role}
+            >
+              <option value="FIELD">Saha</option>
+              <option value="MANAGER">Yonetici</option>
+            </select>
+            <input
+              className="input"
+              onChange={(event) =>
+                setCreateDraft((current) => ({ ...current, username: event.target.value }))
+              }
+              placeholder="Kullanici adi"
+              required
+              value={createDraft.username}
+            />
+          </div>
+          <input
+            className="input"
+            onChange={(event) =>
+              setCreateDraft((current) => ({ ...current, password: event.target.value }))
+            }
+            placeholder="Sifre"
+            required
+            type="password"
+            value={createDraft.password}
+          />
+          <button className="button" disabled={savingCreate} type="submit">
+            {savingCreate ? "Kaydediliyor..." : "Kaydet"}
+          </button>
+        </form>
+      </ManagerDrawer>
+
+      <ManagerDrawer
+        onClose={() => setDetailDrawerOpen(false)}
+        open={detailDrawerOpen && Boolean(selectedUser)}
+        title={selectedUser?.displayName ?? "Kullanici"}
+      >
+        {selectedUser ? (
+          <form className="stack" onSubmit={handleUpdateUser}>
+            {detailMessage ? <div className="alert">{detailMessage}</div> : null}
+            <div className="manager-table-wrap">
+              <table className="manager-table">
+                <tbody>
+                  <tr>
+                    <th>Rol</th>
+                    <td>{selectedUser.role === "FIELD" ? "Saha" : "Yonetici"}</td>
+                  </tr>
+                  <tr>
+                    <th>Durum</th>
+                    <td>{selectedUser.isActive ? "Aktif" : "Pasif"}</td>
+                  </tr>
+                  <tr>
+                    <th>Aktif Atama</th>
+                    <td>{selectedUser.assignmentCount ?? 0}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <input
+              className="input"
+              onChange={(event) =>
+                setEditDraft((current) => ({ ...current, displayName: event.target.value }))
+              }
+              value={editDraft.displayName}
+            />
+            <div className="split two">
+              <select
+                className="select"
+                onChange={(event) =>
+                  setEditDraft((current) => ({
+                    ...current,
+                    role: event.target.value as UserRole
+                  }))
+                }
+                value={editDraft.role}
+              >
+                <option value="FIELD">Saha</option>
+                <option value="MANAGER">Yonetici</option>
+              </select>
+              <input
+                className="input"
+                onChange={(event) =>
+                  setEditDraft((current) => ({ ...current, username: event.target.value }))
+                }
+                value={editDraft.username}
+              />
+            </div>
+            <input
+              className="input"
+              onChange={(event) =>
+                setEditDraft((current) => ({ ...current, password: event.target.value }))
+              }
+              placeholder="Sifre degistirmek icin yeni sifre"
+              type="password"
+              value={editDraft.password}
+            />
+            <label className="toggle-row">
+              <span>Hesap aktif</span>
+              <input
+                checked={editDraft.isActive}
+                onChange={(event) =>
+                  setEditDraft((current) => ({ ...current, isActive: event.target.checked }))
+                }
+                type="checkbox"
+              />
+            </label>
+
+            <div className="toolbar">
+              <button className="button" disabled={savingDetail || removingUser} type="submit">
+                {savingDetail ? "Kaydediliyor..." : "Kaydet"}
+              </button>
+              <button
+                className="button ghost"
+                disabled={savingDetail || removingUser}
+                onClick={toggleUserActive}
+                type="button"
+              >
+                {selectedUser.isActive ? "Pasife Al" : "Aktif Et"}
+              </button>
+            </div>
+
+            <div className="inline-form-shell danger-zone">
+              <div className="eyebrow">Riskli islemler</div>
+              <button
+                className="button danger-minimal"
+                disabled={savingDetail || removingUser}
+                onClick={deleteUser}
+                type="button"
+              >
+                {removingUser ? "Isleniyor..." : "Sil / Kaldir"}
+              </button>
+            </div>
+          </form>
+        ) : null}
+      </ManagerDrawer>
+    </>
+  );
+}

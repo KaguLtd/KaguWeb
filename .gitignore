@@ -1,0 +1,12 @@
+node_modules/
+.next/
+.next-dev/
+dist/
+coverage/
+.turbo/
+.env
+.env.local
+.npm-cache/
+apps/api/prisma/dev.db
+storage/
+*.log

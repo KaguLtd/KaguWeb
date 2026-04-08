@@ -1,0 +1,33 @@
+{
+  "name": "Kagu Saha Tester",
+  "repoRoot": "C:/Users/Exa Laptop/Documents/KAGUgit/KaguWeb",
+  "month": {
+    "startDate": "2026-04-01",
+    "endDate": "2026-04-30",
+    "uiCheckpoints": ["2026-04-01", "2026-04-04", "2026-04-08", "2026-04-15", "2026-04-22", "2026-04-30"],
+    "halfDayWeekday": 6,
+    "offDayWeekday": 0
+  },
+  "runtime": {
+    "apiOrigin": "http://127.0.0.1:4300",
+    "apiBasePath": "/api",
+    "webOrigin": "http://localhost:3300",
+    "databaseUrl": "postgresql://postgres:postgres@localhost:5432/kagu_tester?schema=public",
+    "storageRoot": "./runtime/storage"
+  },
+  "bootstrapAdmin": {
+    "username": "merve.kaya",
+    "displayName": "Merve Kaya",
+    "password": "Kagu123!"
+  },
+  "managerMobile": {
+    "username": "deniz.arslan",
+    "displayName": "Deniz Arslan",
+    "password": "Kagu123!"
+  },
+  "fieldPassword": "Saha123!",
+  "sampleCoordinates": {
+    "baseLatitude": 41.039,
+    "baseLongitude": 28.985
+  }
+}

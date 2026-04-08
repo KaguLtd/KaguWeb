@@ -1,0 +1,22 @@
+{
+  "name": "kaguweb",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:up": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev-up.ps1",
+    "dev:web": "npm run dev --workspace @kagu/web",
+    "dev:api": "npm run start:dev --workspace @kagu/api",
+    "build": "npm run build --workspace @kagu/contracts && npm run build --workspace @kagu/api && npm run build --workspace @kagu/web",
+    "test": "npm run test --workspace @kagu/api",
+    "prisma:generate": "npm run prisma:generate --workspace @kagu/api",
+    "prisma:seed": "npm run db:seed-demo",
+    "db:ensure-local": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ensure-local-postgres.ps1",
+    "db:init": "prisma migrate deploy --schema apps/api/prisma/schema.prisma",
+    "db:bootstrap-admin": "ts-node --project apps/api/tsconfig.json apps/api/prisma/bootstrap-admin.ts",
+    "db:seed-demo": "prisma db seed --schema apps/api/prisma/schema.prisma"
+  }
+}

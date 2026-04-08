@@ -1,0 +1,311 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  MANAGER
+  FIELD
+}
+
+enum ProjectEntryType {
+  MANAGER_NOTE
+  FIELD_NOTE
+  WORK_START
+  WORK_END
+  FILE_UPLOAD
+  IMAGE_UPLOAD
+  LOCATION_EVENT
+}
+
+enum FileScope {
+  MAIN
+  TIMELINE
+}
+
+enum FileCategory {
+  DOCUMENT
+  IMAGE
+}
+
+enum NotificationCampaignType {
+  MANUAL
+  DAILY_REMINDER
+}
+
+enum NotificationDeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model User {
+  id                      String                     @id @default(cuid())
+  username                String                     @unique
+  displayName             String
+  passwordHash            String
+  role                    Role
+  isActive                Boolean                    @default(true)
+  createdAt               DateTime                   @default(now())
+  updatedAt               DateTime                   @updatedAt
+  createdProjects         Project[]                  @relation("ProjectCreator")
+  createdPrograms         DailyProgram[]             @relation("ProgramCreator")
+  addedProgramProjects    DailyProgramProject[]      @relation("ProgramProjectAdder")
+  assignments             ProjectAssignment[]        @relation("AssignmentUser")
+  assignedAssignments     ProjectAssignment[]        @relation("AssignmentCreator")
+  uploadedFiles           ProjectFile[]              @relation("FileCreator")
+  uploadedFileVersions    ProjectFileVersion[]       @relation("FileVersionUploader")
+  entries                 ProjectEntry[]             @relation("EntryActor")
+  workSessions            WorkSession[]              @relation("SessionUser")
+  locationPings           LocationPing[]             @relation("LocationActor")
+  notificationSubscriptions NotificationSubscription[]
+  sentNotificationCampaigns NotificationCampaign[]   @relation("NotificationSender")
+  receivedNotificationDeliveries NotificationDelivery[] @relation("NotificationTarget")
+  authSessions            AuthSession[]
+}
+
+model AuthSession {
+  id          String    @id @default(cuid())
+  userId      String
+  tokenHash   String
+  userAgent   String?
+  rememberMe  Boolean   @default(true)
+  expiresAt   DateTime
+  lastUsedAt  DateTime  @default(now())
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+}
+
+model Customer {
+  id         String    @id @default(cuid())
+  name       String    @unique
+  note       String?
+  isArchived Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  projects   Project[]
+}
+
+model Project {
+  id              String                @id @default(cuid())
+  customerId      String?
+  code            String?               @unique
+  name            String
+  description     String?
+  locationLabel   String?
+  latitude        Float?
+  longitude       Float?
+  isArchived      Boolean               @default(false)
+  storageRoot     String                @unique
+  createdById     String
+  createdBy       User                  @relation("ProjectCreator", fields: [createdById], references: [id])
+  customer        Customer?             @relation(fields: [customerId], references: [id])
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  programProjects DailyProgramProject[]
+  files           ProjectFile[]
+  entries         ProjectEntry[]
+  locationPings   LocationPing[]
+}
+
+model DailyProgram {
+  id                    String                 @id @default(cuid())
+  date                  DateTime               @unique @db.Date
+  managerNote           String?
+  createdById           String
+  createdBy             User                   @relation("ProgramCreator", fields: [createdById], references: [id])
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  programProjects       DailyProgramProject[]
+  notificationCampaigns NotificationCampaign[]
+}
+
+model DailyProgramProject {
+  id              String              @id @default(cuid())
+  dailyProgramId  String
+  projectId       String
+  addedById       String
+  sortOrder       Int                 @default(0)
+  createdAt       DateTime            @default(now())
+  dailyProgram    DailyProgram        @relation(fields: [dailyProgramId], references: [id])
+  project         Project             @relation(fields: [projectId], references: [id])
+  addedBy         User                @relation("ProgramProjectAdder", fields: [addedById], references: [id])
+  assignments     ProjectAssignment[]
+  entries         ProjectEntry[]
+
+  @@unique([dailyProgramId, projectId])
+  @@index([dailyProgramId, sortOrder])
+}
+
+model ProjectAssignment {
+  id                String           @id @default(cuid())
+  dailyProgramProjectId String
+  userId            String
+  assignedById      String
+  isActive          Boolean          @default(true)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  dailyProgramProject DailyProgramProject @relation(fields: [dailyProgramProjectId], references: [id])
+  user              User             @relation("AssignmentUser", fields: [userId], references: [id])
+  assignedBy        User             @relation("AssignmentCreator", fields: [assignedById], references: [id])
+  workSessions      WorkSession[]
+  locationPings     LocationPing[]
+
+  @@unique([dailyProgramProjectId, userId])
+  @@index([userId, isActive])
+}
+
+model WorkSession {
+  id            String              @id @default(cuid())
+  assignmentId  String
+  userId        String
+  startedAt     DateTime
+  endedAt       DateTime?
+  startedNote   String?
+  endedNote     String?
+  startedLat    Float?
+  startedLng    Float?
+  endedLat      Float?
+  endedLng      Float?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  assignment    ProjectAssignment   @relation(fields: [assignmentId], references: [id])
+  user          User                @relation("SessionUser", fields: [userId], references: [id])
+  entries       ProjectEntry[]
+  locationPings LocationPing[]
+
+  @@index([assignmentId, endedAt])
+  @@index([userId, endedAt])
+}
+
+model ProjectEntry {
+  id                String            @id @default(cuid())
+  projectId         String
+  dailyProgramProjectId String
+  actorId           String
+  workSessionId     String?
+  entryType         ProjectEntryType
+  note              String?
+  entryDate         DateTime          @db.Date
+  createdAt         DateTime          @default(now())
+  project           Project           @relation(fields: [projectId], references: [id])
+  dailyProgramProject DailyProgramProject @relation(fields: [dailyProgramProjectId], references: [id])
+  actor             User              @relation("EntryActor", fields: [actorId], references: [id])
+  workSession       WorkSession?      @relation(fields: [workSessionId], references: [id])
+  files             ProjectFile[]     @relation("EntryFiles")
+
+  @@index([projectId, createdAt])
+  @@index([dailyProgramProjectId, createdAt])
+}
+
+model ProjectFile {
+  id            String               @id @default(cuid())
+  projectId     String
+  entryId       String?
+  scope         FileScope
+  category      FileCategory
+  title         String
+  createdById   String
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  project       Project              @relation(fields: [projectId], references: [id])
+  entry         ProjectEntry?        @relation("EntryFiles", fields: [entryId], references: [id])
+  createdBy     User                 @relation("FileCreator", fields: [createdById], references: [id])
+  versions      ProjectFileVersion[]
+
+  @@index([projectId, scope])
+}
+
+model ProjectFileVersion {
+  id            String               @id @default(cuid())
+  fileId        String
+  versionNumber Int
+  originalName  String
+  storagePath   String
+  mimeType      String
+  extension     String
+  size          Int
+  uploadedById  String
+  createdAt     DateTime             @default(now())
+  file          ProjectFile          @relation(fields: [fileId], references: [id])
+  uploadedBy    User                 @relation("FileVersionUploader", fields: [uploadedById], references: [id])
+
+  @@unique([fileId, versionNumber])
+}
+
+model LocationPing {
+  id            String               @id @default(cuid())
+  projectId     String
+  assignmentId  String
+  workSessionId String?
+  actorId       String
+  latitude      Float
+  longitude     Float
+  accuracy      Float?
+  source        String
+  capturedAt    DateTime             @default(now())
+  project       Project              @relation(fields: [projectId], references: [id])
+  assignment    ProjectAssignment    @relation(fields: [assignmentId], references: [id])
+  workSession   WorkSession?         @relation(fields: [workSessionId], references: [id])
+  actor         User                 @relation("LocationActor", fields: [actorId], references: [id])
+
+  @@index([projectId, capturedAt])
+  @@index([actorId, capturedAt])
+}
+
+model NotificationSubscription {
+  id         String                 @id @default(cuid())
+  userId     String
+  endpoint   String                 @unique
+  p256dhKey  String
+  authKey    String
+  userAgent  String?
+  isActive   Boolean                @default(true)
+  createdAt  DateTime               @default(now())
+  updatedAt  DateTime               @updatedAt
+  lastSeenAt DateTime               @default(now())
+  user       User                   @relation(fields: [userId], references: [id])
+  deliveries NotificationDelivery[]
+}
+
+model NotificationCampaign {
+  id            String                   @id @default(cuid())
+  senderId      String
+  type          NotificationCampaignType
+  title         String
+  message       String
+  targetDate    DateTime?                @db.Date
+  dailyProgramId String?
+  createdAt     DateTime                 @default(now())
+  sender        User                     @relation("NotificationSender", fields: [senderId], references: [id])
+  dailyProgram  DailyProgram?            @relation(fields: [dailyProgramId], references: [id])
+  deliveries    NotificationDelivery[]
+
+  @@index([createdAt])
+}
+
+model NotificationDelivery {
+  id             String                     @id @default(cuid())
+  campaignId     String
+  targetUserId   String
+  subscriptionId String?
+  status         NotificationDeliveryStatus @default(PENDING)
+  sentAt         DateTime?
+  failureReason  String?
+  createdAt      DateTime                   @default(now())
+  campaign       NotificationCampaign       @relation(fields: [campaignId], references: [id])
+  targetUser     User                       @relation("NotificationTarget", fields: [targetUserId], references: [id])
+  subscription   NotificationSubscription?  @relation(fields: [subscriptionId], references: [id])
+
+  @@index([campaignId])
+  @@index([targetUserId, createdAt])
+}

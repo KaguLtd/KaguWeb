@@ -1,0 +1,20 @@
+{
+  "name": "kagu-saha-tester",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Kagu Saha Takip icin izole 1 aylik tester ve rapor ureticisi",
+  "type": "module",
+  "scripts": {
+    "setup": "tsx src/setup.ts",
+    "simulate": "tsx src/simulate.ts",
+    "ui": "tsx src/ui.ts",
+    "report": "tsx src/report.ts",
+    "all": "tsx src/all.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "playwright": "^1.51.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
