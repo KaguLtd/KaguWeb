@@ -5,7 +5,7 @@ import { FormEvent, useDeferredValue, useEffect, useMemo, useState } from "react
 import { apiFetch } from "../lib/api";
 import { formatDisplayDate } from "../lib/date";
 import { useAuth } from "./auth-provider";
-import { ManagerDrawer } from "./manager-ui";
+import { ManagerDrawer, ManagerDrawerSection } from "./manager-ui";
 
 type UserFormState = {
   displayName: string;
@@ -37,6 +37,10 @@ const emptyUserEdit: UserEditState = {
   isActive: true
 };
 
+function roleLabel(role: UserRole) {
+  return role === "FIELD" ? "Saha" : "Yonetici";
+}
+
 export function ManagerUsersModule() {
   const { token } = useAuth();
   const [users, setUsers] = useState<ManagerUserSummary[]>([]);
@@ -61,6 +65,9 @@ export function ManagerUsersModule() {
     () => users.find((user) => user.id === selectedUserId) ?? null,
     [selectedUserId, users]
   );
+  const totalActive = users.filter((user) => user.isActive).length;
+  const totalField = users.filter((user) => user.role === "FIELD").length;
+  const totalManagers = users.filter((user) => user.role === "MANAGER").length;
 
   useEffect(() => {
     if (!token) {
@@ -247,10 +254,13 @@ export function ManagerUsersModule() {
   return (
     <>
       <div className="manager-module manager-stack-layout">
-        <section className="manager-command-surface manager-command-surface-left">
+        <section className="manager-command-surface manager-command-surface-grid">
           <div className="manager-command-copy">
             <span className="manager-command-kicker">Kullanicilar</span>
             <h2 className="manager-block-title">Ekip hesaplari</h2>
+            <p className="manager-block-copy">
+              Roller, kullanilabilirlik ve saha kapasitesini ayni listede dengeleyin.
+            </p>
           </div>
           <div className="manager-command-controls manager-command-controls-left">
             <div className="manager-inline-actions">
@@ -271,9 +281,7 @@ export function ManagerUsersModule() {
               </select>
               <select
                 className="select"
-                onChange={(event) =>
-                  setStatusFilter(event.target.value as "active" | "inactive" | "all")
-                }
+                onChange={(event) => setStatusFilter(event.target.value as "active" | "inactive" | "all")}
                 value={statusFilter}
               >
                 <option value="active">Aktif</option>
@@ -291,11 +299,34 @@ export function ManagerUsersModule() {
 
         {message ? <div className="alert">{message}</div> : null}
 
+        <section className="manager-stat-ribbon manager-stat-ribbon-compact">
+          <article className="manager-stat-card">
+            <span>Toplam kayit</span>
+            <strong>{loading ? "..." : users.length}</strong>
+            <small>Mevcut filtre sonucu</small>
+          </article>
+          <article className="manager-stat-card">
+            <span>Aktif hesap</span>
+            <strong>{loading ? "..." : totalActive}</strong>
+            <small>Calisabilir kullanicilar</small>
+          </article>
+          <article className="manager-stat-card">
+            <span>Saha</span>
+            <strong>{loading ? "..." : totalField}</strong>
+            <small>Mobil saha rolunde</small>
+          </article>
+          <article className="manager-stat-card">
+            <span>Yonetici</span>
+            <strong>{loading ? "..." : totalManagers}</strong>
+            <small>Panel operatorleri</small>
+          </article>
+        </section>
+
         <section className="manager-surface-card">
           <div className="manager-section-head compact">
             <div>
               <span className="manager-section-kicker">Kullanici listesi</span>
-              <h3 className="manager-section-title">Excel benzeri satir gorunumu</h3>
+              <h3 className="manager-section-title">Tablo gorunumu</h3>
             </div>
             <span className="manager-mini-chip">
               {loading ? "Yukleniyor..." : `${users.length} hesap`}
@@ -320,15 +351,20 @@ export function ManagerUsersModule() {
                 </thead>
                 <tbody>
                   {users.map((user) => (
-                    <tr
-                      className="manager-table-clickable"
-                      key={user.id}
-                      onClick={() => openUserDetail(user.id)}
-                    >
-                      <td>{user.displayName}</td>
+                    <tr className="manager-table-clickable" key={user.id} onClick={() => openUserDetail(user.id)}>
+                      <td>
+                        <div className="manager-table-primary">
+                          <strong>{user.displayName}</strong>
+                          <span>{user.subscriptionCount ?? 0} cihaz kaydi</span>
+                        </div>
+                      </td>
                       <td>@{user.username}</td>
-                      <td>{user.role === "FIELD" ? "Saha" : "Yonetici"}</td>
-                      <td>{user.isActive ? "Aktif" : "Pasif"}</td>
+                      <td>{roleLabel(user.role)}</td>
+                      <td>
+                        <span className={`manager-inline-badge ${user.isActive ? "is-positive" : "is-muted"}`}>
+                          {user.isActive ? "Aktif" : "Pasif"}
+                        </span>
+                      </td>
                       <td>{user.assignmentCount ?? 0}</td>
                       <td>{user.openSessionCount ?? 0}</td>
                       <td>{formatDisplayDate(user.createdAt)}</td>
@@ -345,54 +381,62 @@ export function ManagerUsersModule() {
         onClose={() => setCreateDrawerOpen(false)}
         open={createDrawerOpen}
         title="Yeni Kullanici"
+        description="Yeni saha veya yonetici hesabi olusturun. Mevcut backend akisi ve zorunlu alanlar korunur."
       >
         <form className="stack" onSubmit={handleCreateUser}>
           {createMessage ? <div className="alert">{createMessage}</div> : null}
-          <input
-            className="input"
-            onChange={(event) =>
-              setCreateDraft((current) => ({ ...current, displayName: event.target.value }))
-            }
-            placeholder="Ad soyad"
-            required
-            value={createDraft.displayName}
-          />
-          <div className="split two">
-            <select
-              className="select"
-              onChange={(event) =>
-                setCreateDraft((current) => ({
-                  ...current,
-                  role: event.target.value as UserRole
-                }))
-              }
-              value={createDraft.role}
-            >
-              <option value="FIELD">Saha</option>
-              <option value="MANAGER">Yonetici</option>
-            </select>
-            <input
-              className="input"
-              onChange={(event) =>
-                setCreateDraft((current) => ({ ...current, username: event.target.value }))
-              }
-              placeholder="Kullanici adi"
-              required
-              value={createDraft.username}
-            />
-          </div>
-          <input
-            className="input"
-            onChange={(event) =>
-              setCreateDraft((current) => ({ ...current, password: event.target.value }))
-            }
-            placeholder="Sifre"
-            required
-            type="password"
-            value={createDraft.password}
-          />
+
+          <ManagerDrawerSection
+            eyebrow="Kimlik"
+            title="Temel kullanici bilgisi"
+            description="Ad, rol ve giris bilgileri bu bolumden tanimlanir."
+          >
+            <div className="split two">
+              <input
+                className="input"
+                onChange={(event) =>
+                  setCreateDraft((current) => ({ ...current, displayName: event.target.value }))
+                }
+                placeholder="Ad soyad"
+                required
+                value={createDraft.displayName}
+              />
+              <input
+                className="input"
+                onChange={(event) =>
+                  setCreateDraft((current) => ({ ...current, username: event.target.value }))
+                }
+                placeholder="Kullanici adi"
+                required
+                value={createDraft.username}
+              />
+            </div>
+            <div className="split two">
+              <select
+                className="select"
+                onChange={(event) =>
+                  setCreateDraft((current) => ({ ...current, role: event.target.value as UserRole }))
+                }
+                value={createDraft.role}
+              >
+                <option value="FIELD">Saha</option>
+                <option value="MANAGER">Yonetici</option>
+              </select>
+              <input
+                className="input"
+                onChange={(event) =>
+                  setCreateDraft((current) => ({ ...current, password: event.target.value }))
+                }
+                placeholder="Sifre"
+                required
+                type="password"
+                value={createDraft.password}
+              />
+            </div>
+          </ManagerDrawerSection>
+
           <button className="button" disabled={savingCreate} type="submit">
-            {savingCreate ? "Kaydediliyor..." : "Kaydet"}
+            {savingCreate ? "Kaydediliyor..." : "Kullaniciyi Kaydet"}
           </button>
         </form>
       </ManagerDrawer>
@@ -401,103 +445,137 @@ export function ManagerUsersModule() {
         onClose={() => setDetailDrawerOpen(false)}
         open={detailDrawerOpen && Boolean(selectedUser)}
         title={selectedUser?.displayName ?? "Kullanici"}
+        description="Hesap bilgilerini guncelleyin, durumunu yonetin ve gerekli durumlarda kaldirma islemi uygulayin."
+        badge={
+          selectedUser ? (
+            <span className={`manager-inline-badge ${selectedUser.isActive ? "is-positive" : "is-muted"}`}>
+              {selectedUser.isActive ? "Aktif hesap" : "Pasif hesap"}
+            </span>
+          ) : null
+        }
       >
         {selectedUser ? (
           <form className="stack" onSubmit={handleUpdateUser}>
             {detailMessage ? <div className="alert">{detailMessage}</div> : null}
-            <div className="manager-table-wrap">
-              <table className="manager-table">
-                <tbody>
-                  <tr>
-                    <th>Rol</th>
-                    <td>{selectedUser.role === "FIELD" ? "Saha" : "Yonetici"}</td>
-                  </tr>
-                  <tr>
-                    <th>Durum</th>
-                    <td>{selectedUser.isActive ? "Aktif" : "Pasif"}</td>
-                  </tr>
-                  <tr>
-                    <th>Aktif Atama</th>
-                    <td>{selectedUser.assignmentCount ?? 0}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
 
-            <input
-              className="input"
-              onChange={(event) =>
-                setEditDraft((current) => ({ ...current, displayName: event.target.value }))
-              }
-              value={editDraft.displayName}
-            />
-            <div className="split two">
-              <select
-                className="select"
-                onChange={(event) =>
-                  setEditDraft((current) => ({
-                    ...current,
-                    role: event.target.value as UserRole
-                  }))
-                }
-                value={editDraft.role}
-              >
-                <option value="FIELD">Saha</option>
-                <option value="MANAGER">Yonetici</option>
-              </select>
+            <ManagerDrawerSection
+              eyebrow="Ozet"
+              title="Hesap durumu"
+              description="Bu blok sadece mevcut kaydi ozetler, form alanlarini degistirmez."
+            >
+              <div className="manager-sheet-grid">
+                <div className="manager-sheet-card">
+                  <span>Rol</span>
+                  <strong>{roleLabel(selectedUser.role)}</strong>
+                </div>
+                <div className="manager-sheet-card">
+                  <span>Durum</span>
+                  <strong>{selectedUser.isActive ? "Aktif" : "Pasif"}</strong>
+                </div>
+                <div className="manager-sheet-card">
+                  <span>Aktif atama</span>
+                  <strong>{selectedUser.assignmentCount ?? 0}</strong>
+                </div>
+                <div className="manager-sheet-card">
+                  <span>Acik oturum</span>
+                  <strong>{selectedUser.openSessionCount ?? 0}</strong>
+                </div>
+              </div>
+            </ManagerDrawerSection>
+
+            <ManagerDrawerSection
+              eyebrow="Duzenle"
+              title="Kullanici bilgileri"
+              description="Backend form alanlari korunur; yalnizca sunum bloklari yeniden duzenlenir."
+            >
               <input
                 className="input"
                 onChange={(event) =>
-                  setEditDraft((current) => ({ ...current, username: event.target.value }))
+                  setEditDraft((current) => ({ ...current, displayName: event.target.value }))
                 }
-                value={editDraft.username}
+                value={editDraft.displayName}
               />
-            </div>
-            <input
-              className="input"
-              onChange={(event) =>
-                setEditDraft((current) => ({ ...current, password: event.target.value }))
-              }
-              placeholder="Sifre degistirmek icin yeni sifre"
-              type="password"
-              value={editDraft.password}
-            />
-            <label className="toggle-row">
-              <span>Hesap aktif</span>
+              <div className="split two">
+                <select
+                  className="select"
+                  onChange={(event) =>
+                    setEditDraft((current) => ({ ...current, role: event.target.value as UserRole }))
+                  }
+                  value={editDraft.role}
+                >
+                  <option value="FIELD">Saha</option>
+                  <option value="MANAGER">Yonetici</option>
+                </select>
+                <input
+                  className="input"
+                  onChange={(event) =>
+                    setEditDraft((current) => ({ ...current, username: event.target.value }))
+                  }
+                  value={editDraft.username}
+                />
+              </div>
               <input
-                checked={editDraft.isActive}
+                className="input"
                 onChange={(event) =>
-                  setEditDraft((current) => ({ ...current, isActive: event.target.checked }))
+                  setEditDraft((current) => ({ ...current, password: event.target.value }))
                 }
-                type="checkbox"
+                placeholder="Sifre degistirmek icin yeni sifre"
+                type="password"
+                value={editDraft.password}
               />
-            </label>
+              <label className="toggle-row">
+                <span>Hesap aktif</span>
+                <input
+                  checked={editDraft.isActive}
+                  onChange={(event) =>
+                    setEditDraft((current) => ({ ...current, isActive: event.target.checked }))
+                  }
+                  type="checkbox"
+                />
+              </label>
+            </ManagerDrawerSection>
 
-            <div className="toolbar">
-              <button className="button" disabled={savingDetail || removingUser} type="submit">
-                {savingDetail ? "Kaydediliyor..." : "Kaydet"}
-              </button>
-              <button
-                className="button ghost"
-                disabled={savingDetail || removingUser}
-                onClick={toggleUserActive}
-                type="button"
-              >
-                {selectedUser.isActive ? "Pasife Al" : "Aktif Et"}
-              </button>
-            </div>
+            <ManagerDrawerSection
+              eyebrow="Aksiyonlar"
+              title="Durum degisikligi"
+              description="Kaydet, aktif/pasif gecisi ve kaldirma akislari ayni backend davranisiyla devam eder."
+            >
+              <div className="toolbar">
+                <button className="button" disabled={savingDetail || removingUser} type="submit">
+                  {savingDetail ? "Kaydediliyor..." : "Kaydet"}
+                </button>
+                <button
+                  className="button ghost"
+                  disabled={savingDetail || removingUser}
+                  onClick={toggleUserActive}
+                  type="button"
+                >
+                  {selectedUser.isActive ? "Pasife Al" : "Aktif Et"}
+                </button>
+              </div>
+            </ManagerDrawerSection>
 
-            <div className="inline-form-shell danger-zone">
-              <div className="eyebrow">Riskli islemler</div>
-              <button
-                className="button danger-minimal"
-                disabled={savingDetail || removingUser}
-                onClick={deleteUser}
-                type="button"
-              >
-                {removingUser ? "Isleniyor..." : "Sil / Kaldir"}
-              </button>
-            </div>
+            <ManagerDrawerSection
+              eyebrow="Riskli islem"
+              title="Hesabi kaldir"
+              description="Silme uygun degilse mevcut backend davranisi geregi hesap pasife cekilir."
+              tone="danger"
+            >
+              <div className="danger-zone">
+                <div className="manager-risk-copy">
+                  <strong>Sil / Kaldir</strong>
+                  <p className="muted">Gecmis kayitlar korunurken hesap sistemden kaldirilir veya pasife cekilir.</p>
+                </div>
+                <button
+                  className="button danger-minimal"
+                  disabled={savingDetail || removingUser}
+                  onClick={deleteUser}
+                  type="button"
+                >
+                  {removingUser ? "Isleniyor..." : "Sil / Kaldir"}
+                </button>
+              </div>
+            </ManagerDrawerSection>
           </form>
         ) : null}
       </ManagerDrawer>

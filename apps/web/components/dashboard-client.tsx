@@ -22,7 +22,12 @@ export function DashboardClient() {
   if (!ready || !token || !user) {
     return (
       <div className="login-shell">
-        <div className="panel glass">Hazirlaniyor...</div>
+        <div className="panel glass shell-loading-card">
+          <div className="shell-loading-copy">
+            <strong>Calisma alani hazirlaniyor</strong>
+            <span>Oturum durumu ve rol bilgisi denetleniyor.</span>
+          </div>
+        </div>
       </div>
     );
   }

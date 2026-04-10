@@ -1,10 +1,10 @@
 import { ValidationPipe } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
 
-function isAllowedWebOrigin(origin: string) {
-  const configured = process.env.WEB_ORIGIN;
-  if (configured && origin === configured) {
+function isAllowedWebOrigin(origin: string, configuredOrigin: string) {
+  if (origin === configuredOrigin) {
     return true;
   }
 
@@ -20,11 +20,14 @@ function isAllowedWebOrigin(origin: string) {
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const configService = app.get(ConfigService);
+  const configuredOrigin = configService.getOrThrow<string>("WEB_ORIGIN");
+  const port = Number(configService.getOrThrow<string>("PORT"));
 
   app.setGlobalPrefix("api");
   app.enableCors({
     origin(origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) {
-      if (!origin || isAllowedWebOrigin(origin)) {
+      if (!origin || isAllowedWebOrigin(origin, configuredOrigin)) {
         callback(null, true);
         return;
       }
@@ -41,7 +44,6 @@ async function bootstrap() {
     })
   );
 
-  const port = Number(process.env.PORT ?? "4000");
   await app.listen(port);
 }
 

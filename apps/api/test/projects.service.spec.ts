@@ -1,16 +1,5 @@
 import { Role } from "@prisma/client";
 import { ProjectsService } from "../src/projects/projects.service";
-import * as storage from "../src/common/utils/storage";
-
-jest.mock("../src/common/utils/storage", () => ({
-  ensureDir: jest.fn(),
-  getStorageRoot: jest.fn(() => "C:/storage"),
-  removeEmptyStorageDirectories: jest.fn(),
-  removeStoredFiles: jest.fn(),
-  removeStorageTree: jest.fn(),
-  resolveStoragePath: jest.fn((value: string) => `C:/storage/${value}`),
-  writeBufferToStorage: jest.fn()
-}));
 
 describe("ProjectsService", () => {
   const actor = {
@@ -33,6 +22,183 @@ describe("ProjectsService", () => {
     };
   }
 
+  function createStorageDriverMock() {
+    return {
+      ensureDirectory: jest.fn().mockResolvedValue(undefined),
+      createReadStream: jest.fn(),
+      pathExists: jest.fn(),
+      writeBuffer: jest.fn(),
+      writeText: jest.fn(),
+      appendJsonLine: jest.fn(),
+      moveTree: jest.fn(),
+      removeTree: jest.fn().mockResolvedValue(undefined),
+      removeFiles: jest.fn().mockResolvedValue(undefined),
+      removeEmptyDirectories: jest.fn().mockResolvedValue(undefined)
+    };
+  }
+
+  function createStoragePathServiceMock() {
+    return {
+      projectMainRoot: jest.fn((storageRoot: string) => `${storageRoot}/main`),
+      projectTimelineRoot: jest.fn((storageRoot: string) => `${storageRoot}/timeline`),
+      projectMainUploadDirectory: jest.fn((storageRoot: string) => `${storageRoot}/main/proje`),
+      projectTimelineUploadDirectory: jest.fn((storageRoot: string) => `${storageRoot}/timeline/2026-03-29`),
+      relativeDirectory: jest.fn((storagePath: string) => storagePath.split("/").slice(0, -1).join("/"))
+    };
+  }
+
+  it("returns a merged timeline with form responses mapped as read-only items", async () => {
+    const prisma = {
+      project: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: "project-1",
+          storageRoot: "projects/project-1"
+        })
+      },
+      projectAssignment: {
+        findFirst: jest.fn()
+      },
+      projectEntry: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: "entry-1",
+            projectId: "project-1",
+            entryType: "NOTE",
+            note: "Gunun notu",
+            entryDate: new Date("2026-04-10T00:00:00.000Z"),
+            createdAt: new Date("2026-04-10T09:00:00.000Z"),
+            actor: {
+              id: "field-1",
+              username: "saha",
+              displayName: "Saha Personeli",
+              role: Role.FIELD
+            },
+            files: []
+          }
+        ])
+      },
+      fieldFormResponse: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: "response-1",
+            projectId: "project-1",
+            dailyProgramProjectId: "program-project-1",
+            projectEntryId: "entry-1",
+            payload: {
+              answers: [{ key: "weather", value: "clear" }]
+            },
+            createdAt: new Date("2026-04-10T10:00:00.000Z"),
+            actor: {
+              id: "field-1",
+              username: "saha",
+              displayName: "Saha Personeli",
+              role: Role.FIELD
+            },
+            template: {
+              id: "template-1",
+              name: "Gunluk Kontrol"
+            },
+            templateVersion: {
+              id: "version-2",
+              versionNumber: 2,
+              title: "v2"
+            }
+          }
+        ])
+      }
+    };
+
+    const storageService = createStorageServiceMock();
+    const storageDriver = createStorageDriverMock();
+    const storagePaths = createStoragePathServiceMock();
+    const service = new ProjectsService(
+      prisma as never,
+      storageService as never,
+      storageDriver as never,
+      storagePaths as never
+    );
+
+    const result = await service.getTimeline("project-1", actor as never);
+
+    expect(prisma.projectEntry.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { projectId: "project-1" }
+      })
+    );
+    expect(prisma.fieldFormResponse.findMany).toHaveBeenCalledWith({
+      where: { projectId: "project-1" },
+      include: {
+        actor: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+            role: true
+          }
+        },
+        template: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        templateVersion: {
+          select: {
+            id: true,
+            versionNumber: true,
+            title: true
+          }
+        }
+      },
+      orderBy: { createdAt: "desc" }
+    });
+    expect(result).toEqual([
+      {
+        id: "response-1",
+        projectId: "project-1",
+        entryType: "FIELD_FORM_RESPONSE",
+        note: null,
+        entryDate: "2026-04-10T10:00:00.000Z",
+        createdAt: "2026-04-10T10:00:00.000Z",
+        actor: {
+          id: "field-1",
+          username: "saha",
+          displayName: "Saha Personeli",
+          role: Role.FIELD
+        },
+        files: [],
+        formResponse: {
+          id: "response-1",
+          templateId: "template-1",
+          templateName: "Gunluk Kontrol",
+          templateVersionId: "version-2",
+          templateVersionNumber: 2,
+          templateVersionTitle: "v2",
+          dailyProgramProjectId: "program-project-1",
+          projectEntryId: "entry-1",
+          payload: {
+            answers: [{ key: "weather", value: "clear" }]
+          }
+        }
+      },
+      {
+        id: "entry-1",
+        projectId: "project-1",
+        entryType: "NOTE",
+        note: "Gunun notu",
+        entryDate: "2026-04-10T00:00:00.000Z",
+        createdAt: "2026-04-10T09:00:00.000Z",
+        actor: {
+          id: "field-1",
+          username: "saha",
+          displayName: "Saha Personeli",
+          role: Role.FIELD
+        },
+        files: []
+      }
+    ]);
+  });
+
   it("cleans prepared storage when project creation fails after scaffold", async () => {
     const prisma = {
       customer: {
@@ -44,7 +210,14 @@ describe("ProjectsService", () => {
     };
 
     const storageService = createStorageServiceMock();
-    const service = new ProjectsService(prisma as never, storageService as never);
+    const storageDriver = createStorageDriverMock();
+    const storagePaths = createStoragePathServiceMock();
+    const service = new ProjectsService(
+      prisma as never,
+      storageService as never,
+      storageDriver as never,
+      storagePaths as never
+    );
 
     await expect(
       service.create(
@@ -55,8 +228,8 @@ describe("ProjectsService", () => {
       )
     ).rejects.toThrow("db-failed");
 
-    expect(storage.ensureDir).toHaveBeenCalledTimes(2);
-    expect(storage.removeStorageTree).toHaveBeenCalledWith(expect.stringMatching(/^projects\//));
+    expect(storageDriver.ensureDirectory).toHaveBeenCalledTimes(2);
+    expect(storageDriver.removeTree).toHaveBeenCalledWith(expect.stringMatching(/^projects\//));
   });
 
   it("removes staged main files when the DB transaction fails", async () => {
@@ -71,14 +244,21 @@ describe("ProjectsService", () => {
       $transaction: jest.fn().mockRejectedValue(new Error("tx-failed"))
     };
 
-    (storage.writeBufferToStorage as jest.Mock).mockResolvedValue({
+    const storageService = createStorageServiceMock();
+    const storageDriver = createStorageDriverMock();
+    const storagePaths = createStoragePathServiceMock();
+    storageDriver.writeBuffer.mockResolvedValue({
       absolutePath: "C:/storage/projects/project-1/main/proje/a.pdf",
       relativeDirectory: "projects/project-1/main/proje",
       relativePath: "projects/project-1/main/proje/a.pdf"
     });
 
-    const storageService = createStorageServiceMock();
-    const service = new ProjectsService(prisma as never, storageService as never);
+    const service = new ProjectsService(
+      prisma as never,
+      storageService as never,
+      storageDriver as never,
+      storagePaths as never
+    );
 
     await expect(
       service.uploadMainFiles(
@@ -96,10 +276,10 @@ describe("ProjectsService", () => {
       )
     ).rejects.toThrow("tx-failed");
 
-    expect(storage.removeStoredFiles).toHaveBeenCalledWith([
+    expect(storageDriver.removeFiles).toHaveBeenCalledWith([
       "projects/project-1/main/proje/a.pdf"
     ]);
-    expect(storage.removeEmptyStorageDirectories).toHaveBeenCalledWith(
+    expect(storageDriver.removeEmptyDirectories).toHaveBeenCalledWith(
       ["projects/project-1/main/proje"],
       "projects/project-1/main"
     );
@@ -127,16 +307,23 @@ describe("ProjectsService", () => {
     };
 
     const storageService = createStorageServiceMock();
-    const service = new ProjectsService(prisma as never, storageService as never);
+    const storageDriver = createStorageDriverMock();
+    const storagePaths = createStoragePathServiceMock();
+    const service = new ProjectsService(
+      prisma as never,
+      storageService as never,
+      storageDriver as never,
+      storagePaths as never
+    );
     jest.spyOn(service, "listMainFiles").mockResolvedValue([] as never);
 
     await service.deleteMainFile("project-1", "file-1", actor as never);
 
-    expect(storage.removeStoredFiles).toHaveBeenCalledWith([
+    expect(storageDriver.removeFiles).toHaveBeenCalledWith([
       "projects/project-1/main/proje/a.pdf",
       "projects/project-1/main/proje/b.pdf"
     ]);
-    expect(storage.removeEmptyStorageDirectories).toHaveBeenCalledWith(
+    expect(storageDriver.removeEmptyDirectories).toHaveBeenCalledWith(
       ["projects/project-1/main/proje", "projects/project-1/main/proje"],
       "projects/project-1/main"
     );

@@ -11,6 +11,7 @@ import {
 import { Role } from "@prisma/client";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import type { CurrentUserPayload } from "../common/decorators/current-user.decorator";
+import { IdempotencyKey } from "../common/decorators/idempotency-key.decorator";
 import { Roles } from "../common/decorators/roles.decorator";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
@@ -56,13 +57,21 @@ export class NotificationsController {
 
   @Post("manual")
   @Roles(Role.MANAGER)
-  sendManual(@CurrentUser() user: CurrentUserPayload, @Body() dto: SendManualNotificationDto) {
-    return this.notificationsService.sendManual(user, dto);
+  sendManual(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() dto: SendManualNotificationDto,
+    @IdempotencyKey() idempotencyKey?: string
+  ) {
+    return this.notificationsService.sendManual(user, dto, idempotencyKey);
   }
 
   @Post("daily-reminder")
   @Roles(Role.MANAGER)
-  sendDailyReminder(@CurrentUser() user: CurrentUserPayload, @Body() dto: SendDailyReminderDto) {
-    return this.notificationsService.sendDailyReminder(user, dto);
+  sendDailyReminder(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() dto: SendDailyReminderDto,
+    @IdempotencyKey() idempotencyKey?: string
+  ) {
+    return this.notificationsService.sendDailyReminder(user, dto, idempotencyKey);
   }
 }

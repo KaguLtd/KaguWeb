@@ -13,6 +13,14 @@ import { CurrentUser } from "../common/decorators/current-user.decorator";
 import type { CurrentUserPayload } from "../common/decorators/current-user.decorator";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import {
+  AUTH_LOGIN_RATE_LIMITS,
+  AUTH_LOGOUT_RATE_LIMITS,
+  AUTH_PASSWORD_RATE_LIMITS,
+  AUTH_REFRESH_RATE_LIMITS
+} from "../common/security/rate-limit-policies";
+import { RateLimit } from "../common/security/rate-limit.decorator";
+import { RateLimitGuard } from "../common/security/rate-limit.guard";
+import {
   buildClearedRefreshCookie,
   buildRefreshCookie,
   extractRefreshToken
@@ -35,6 +43,8 @@ export class AuthController {
   }
 
   @Post("login")
+  @UseGuards(RateLimitGuard)
+  @RateLimit(...AUTH_LOGIN_RATE_LIMITS)
   async login(
     @Body() dto: LoginDto,
     @Req() request: Request,
@@ -49,6 +59,8 @@ export class AuthController {
   }
 
   @Post("refresh")
+  @UseGuards(RateLimitGuard)
+  @RateLimit(...AUTH_REFRESH_RATE_LIMITS)
   async refresh(@Req() request: Request, @Res({ passthrough: true }) response: Response) {
     const refreshToken = extractRefreshToken(request.headers.cookie);
     const result = await this.authService.refresh(
@@ -64,6 +76,8 @@ export class AuthController {
 
   @Post("logout")
   @HttpCode(204)
+  @UseGuards(RateLimitGuard)
+  @RateLimit(...AUTH_LOGOUT_RATE_LIMITS)
   async logout(@Req() request: Request, @Res({ passthrough: true }) response: Response) {
     const refreshToken = extractRefreshToken(request.headers.cookie);
     await this.authService.logout(refreshToken);
@@ -71,7 +85,8 @@ export class AuthController {
   }
 
   @Patch("password")
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RateLimitGuard)
+  @RateLimit(...AUTH_PASSWORD_RATE_LIMITS)
   async changePassword(
     @CurrentUser() user: CurrentUserPayload,
     @Body() dto: ChangePasswordDto,

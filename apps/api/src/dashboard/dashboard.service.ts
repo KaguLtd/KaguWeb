@@ -7,11 +7,15 @@ import {
 import type { CurrentUserPayload } from "../common/decorators/current-user.decorator";
 import { toDateOnly } from "../common/utils/date";
 import { PrismaService } from "../prisma/prisma.service";
+import { RoutingService } from "../routing/routing.service";
 import { ProjectDurationReportQueryDto } from "./dto/project-duration-report-query.dto";
 
 @Injectable()
 export class DashboardService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly routingService: RoutingService
+  ) {}
 
   async getManagerOverview(actor: CurrentUserPayload, date?: string) {
     this.assertManager(actor);
@@ -20,7 +24,8 @@ export class DashboardService {
     const rangeEnd = new Date(dateOnly);
     rangeEnd.setUTCDate(rangeEnd.getUTCDate() + 1);
 
-    const [program, recentActivities, activeSessions, campaigns] = await Promise.all([
+    const [program, recentActivities, activeSessions, campaigns, fieldFormResponses, routingRecommendations] =
+      await Promise.all([
       this.prisma.dailyProgram.findUnique({
         where: { date: dateOnly },
         include: {
@@ -175,7 +180,47 @@ export class DashboardService {
         },
         orderBy: { createdAt: "desc" },
         take: 12
-      })
+      }),
+      this.prisma.fieldFormResponse.findMany({
+        where: {
+          createdAt: {
+            gte: dateOnly,
+            lt: rangeEnd
+          }
+        },
+        include: {
+          actor: {
+            select: {
+              id: true,
+              username: true,
+              displayName: true,
+              role: true
+            }
+          },
+          project: {
+            select: {
+              id: true,
+              name: true
+            }
+          },
+          template: {
+            select: {
+              id: true,
+              name: true
+            }
+          },
+          templateVersion: {
+            select: {
+              id: true,
+              versionNumber: true,
+              title: true
+            }
+          }
+        },
+        orderBy: { createdAt: "desc" },
+        take: 12
+      }),
+      this.routingService.getRecommendations(actor, { date: selectedDate })
     ]);
 
     const programProjects = (program?.programProjects ?? []).map((programProject) => {
@@ -236,6 +281,24 @@ export class DashboardService {
       )
     };
 
+    const fieldFormSummary = {
+      totalCount: fieldFormResponses.length,
+      uniqueTemplateCount: new Set(fieldFormResponses.map((response) => response.templateId)).size,
+      uniqueProjectCount: new Set(fieldFormResponses.map((response) => response.projectId)).size,
+      recentResponses: fieldFormResponses.map((response) => ({
+        id: response.id,
+        templateId: response.template.id,
+        templateName: response.template.name,
+        templateVersionId: response.templateVersion.id,
+        templateVersionNumber: response.templateVersion.versionNumber,
+        templateVersionTitle: response.templateVersion.title,
+        projectId: response.project.id,
+        projectName: response.project.name,
+        actor: response.actor,
+        createdAt: response.createdAt.toISOString()
+      }))
+    };
+
     return {
       selectedDate,
       summaryCards: {
@@ -283,6 +346,21 @@ export class DashboardService {
           customerName: session.assignment.dailyProgramProject.project.customer?.name ?? null
         }
       })),
+      routingSummary: {
+        routeMode: routingRecommendations.routeMode,
+        anchor: routingRecommendations.anchor,
+        recommendedStopCount: routingRecommendations.stops.length,
+        skippedProjectCount: routingRecommendations.skippedProjects.length,
+        topStops: routingRecommendations.stops.slice(0, 3).map((stop) => ({
+          recommendationRank: stop.recommendationRank,
+          projectId: stop.projectId,
+          projectName: stop.projectName,
+          assignmentCount: stop.assignmentCount,
+          activeSessionCount: stop.activeSessionCount,
+          distanceFromPreviousKm: stop.distanceFromPreviousKm
+        }))
+      },
+      fieldFormSummary,
       notificationSummary
     };
   }

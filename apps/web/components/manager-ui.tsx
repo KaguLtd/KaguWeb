@@ -1,7 +1,8 @@
 "use client";
 
-import { ReactNode, useEffect } from "react";
+import { ReactNode, RefObject, useId, useRef } from "react";
 import { createPortal } from "react-dom";
+import { useDialogBehavior } from "./dialog-behavior";
 import { ChevronDownIcon, CloseIcon } from "./ui-icons";
 
 type ManagerAccordionSectionProps = {
@@ -63,6 +64,9 @@ type ManagerDrawerProps = {
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  description?: string;
+  badge?: ReactNode;
+  initialFocusRef?: RefObject<HTMLElement | null>;
 };
 
 export function ManagerDrawer({
@@ -70,28 +74,22 @@ export function ManagerDrawer({
   title,
   onClose,
   children,
-  footer
+  footer,
+  description,
+  badge,
+  initialFocusRef
 }: ManagerDrawerProps) {
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
+  const panelRef = useRef<HTMLElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const titleId = useId();
+  const descriptionId = useId();
 
-    const previousOverflow = document.body.style.overflow;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", onKeyDown);
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open, onClose]);
+  useDialogBehavior({
+    open,
+    containerRef: panelRef,
+    onClose,
+    initialFocusRef: initialFocusRef ?? closeButtonRef
+  });
 
   if (!open) {
     return null;
@@ -101,6 +99,8 @@ export function ManagerDrawer({
     <div
       className="manager-drawer-shell manager-drawer-shell-portal manager-drawer-scope-v3"
       role="dialog"
+      aria-labelledby={titleId}
+      aria-describedby={description ? descriptionId : undefined}
       aria-modal="true"
     >
       <button
@@ -109,12 +109,22 @@ export function ManagerDrawer({
         onClick={onClose}
         type="button"
       />
-      <aside className="manager-drawer-panel manager-drawer-panel-portal glass">
+      <aside className="manager-drawer-panel manager-drawer-panel-portal glass" ref={panelRef} tabIndex={-1}>
         <div className="manager-drawer-header">
-          <div>
-            <h2 className="title lg">{title}</h2>
+          <div className="manager-drawer-copy">
+            <div className="manager-drawer-heading-row">
+              <h2 className="title lg" id={titleId}>
+                {title}
+              </h2>
+              {badge}
+            </div>
+            {description ? (
+              <p className="muted manager-drawer-description" id={descriptionId}>
+                {description}
+              </p>
+            ) : null}
           </div>
-          <button className="button ghost" onClick={onClose} type="button">
+          <button className="button ghost" onClick={onClose} ref={closeButtonRef} type="button">
             <CloseIcon />
             <span>Kapat</span>
           </button>
@@ -130,4 +140,36 @@ export function ManagerDrawer({
   }
 
   return createPortal(content, document.body);
+}
+
+type ManagerDrawerSectionProps = {
+  eyebrow?: string;
+  title: string;
+  description?: string;
+  meta?: ReactNode;
+  children: ReactNode;
+  tone?: "default" | "danger";
+};
+
+export function ManagerDrawerSection({
+  eyebrow,
+  title,
+  description,
+  meta,
+  children,
+  tone = "default"
+}: ManagerDrawerSectionProps) {
+  return (
+    <section className={`manager-drawer-section manager-drawer-section-${tone}`}>
+      <div className="manager-section-head compact">
+        <div>
+          {eyebrow ? <span className="manager-section-kicker">{eyebrow}</span> : null}
+          <h3 className="manager-section-title">{title}</h3>
+          {description ? <p className="muted manager-section-copy">{description}</p> : null}
+        </div>
+        {meta}
+      </div>
+      {children}
+    </section>
+  );
 }

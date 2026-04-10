@@ -9,13 +9,31 @@ import {
   TimelineEntry
 } from "@kagu/contracts";
 import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { apiFetch, fetchAuthorizedBlob } from "../lib/api";
+import { ApiError, apiFetch, fetchAuthorizedBlob } from "../lib/api";
+import {
+  enqueueFieldOutboxEntry,
+  getFieldOutboxCount,
+  listFieldOutboxEntries,
+  loadAssignmentsSnapshot,
+  loadNotificationHistorySnapshot,
+  loadTimelineSnapshot,
+  removeFieldOutboxEntry,
+  saveAssignmentsSnapshot,
+  saveNotificationHistorySnapshot,
+  saveTimelineSnapshot,
+  updateFieldOutboxEntry
+} from "../lib/field-offline";
+import type { FieldOutboxEntry } from "../lib/field-offline";
 import {
   formatDisplayDate,
   formatDisplayDateTime,
   formatDateValue,
   getTodayLocal
 } from "../lib/date";
+import {
+  registerFieldOutboxSyncListener,
+  requestFieldOutboxSync
+} from "../lib/service-worker-sync";
 import {
   BackIcon,
   BellIcon,
@@ -26,10 +44,62 @@ import {
   PowerIcon,
 } from "./ui-icons";
 import { useAuth } from "./auth-provider";
+import { useDialogBehavior } from "./dialog-behavior";
 
 const PUSH_STORAGE_KEY_PREFIX = "kagu.push.subscriptionId";
 const AUTO_REFRESH_INTERVAL_MS = 10000;
 const RESUME_REFRESH_DEDUPE_MS = 1400;
+
+function createOutboxId() {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `outbox-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function isOfflineMutationError(error: unknown) {
+  return !navigator.onLine || error instanceof TypeError;
+}
+
+function computeReplayBackoffMs(attemptCount: number) {
+  const step = Math.max(1, attemptCount);
+  return Math.min(5 * 60_000, step * 15_000);
+}
+
+function getReplayFailureDisposition(error: unknown) {
+  if (isOfflineMutationError(error)) {
+    return "pause" as const;
+  }
+
+  if (error instanceof ApiError) {
+    if (error.status === 400 || error.status === 403 || error.status === 404) {
+      return "drop" as const;
+    }
+
+    if (error.status === 409 || error.status === 429 || error.status === 401 || error.status >= 500) {
+      return "retry" as const;
+    }
+  }
+
+  return "retry" as const;
+}
+
+function createPendingTimelineEntry(
+  assignment: FieldAssignedProjectSummary,
+  actor: SessionUser,
+  note: string
+): TimelineEntry {
+  const now = new Date().toISOString();
+  return {
+    id: `pending-entry-${createOutboxId()}`,
+    projectId: assignment.projectId,
+    entryType: "FIELD_NOTE",
+    note,
+    entryDate: assignment.dailyProgramDate,
+    createdAt: now,
+    actor,
+    files: []
+  };
+}
 
 function distanceMeters(
   previous: { latitude: number; longitude: number },
@@ -161,6 +231,11 @@ export function FieldWorkspace({
   const [pushConfig, setPushConfig] = useState<{ enabled: boolean; publicKey: string | null } | null>(null);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushMessage, setPushMessage] = useState<string | null>(null);
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [syncStatus, setSyncStatus] = useState<"idle" | "pending" | "syncing" | "synced" | "error">("idle");
+  const [isOfflineMode, setIsOfflineMode] = useState(
+    typeof navigator !== "undefined" ? !navigator.onLine : false
+  );
   const [notificationHistoryPage, setNotificationHistoryPage] = useState<FieldNotificationHistoryPage>({
     items: [],
     page: 1,
@@ -186,6 +261,10 @@ export function FieldWorkspace({
   const selectedProjectIdRef = useRef<string | null>(null);
   const notificationPageRef = useRef(1);
   const detailTopRef = useRef<HTMLDivElement | null>(null);
+  const previewPanelRef = useRef<HTMLDivElement | null>(null);
+  const previewCloseRef = useRef<HTMLButtonElement | null>(null);
+  const passwordPanelRef = useRef<HTMLDivElement | null>(null);
+  const passwordCloseRef = useRef<HTMLButtonElement | null>(null);
   const pushStorageKey = `${PUSH_STORAGE_KEY_PREFIX}:${user.id}`;
   const { replaceAuth } = useAuth();
 
@@ -205,6 +284,19 @@ export function FieldWorkspace({
   const footerDateLabel = selectedAssignment
     ? formatProgramDate(selectedAssignment.dailyProgramDate)
     : homeProgramDateLabel;
+  const syncMessage = isOfflineMode
+    ? pendingSyncCount > 0
+      ? `Cihaz cevrimdisi. ${pendingSyncCount} bekleyen kayit var.`
+      : "Cihaz cevrimdisi. Son basarili veriler gosteriliyor."
+    : syncStatus === "syncing"
+      ? "Bekleyen saha kayitlari senkronlaniyor."
+      : syncStatus === "pending"
+        ? `${pendingSyncCount} saha kaydi baglanti bekliyor.`
+        : syncStatus === "synced" && pendingSyncCount === 0
+          ? "Veriler senkron."
+          : syncStatus === "error"
+            ? "Bazi bekleyen kayitlar senkron sirasinda reddedildi."
+            : null;
   selectedProjectIdRef.current = selectedProjectId;
 
   const noteEntries = useMemo(
@@ -219,6 +311,20 @@ export function FieldWorkspace({
     [timeline]
   );
 
+  useDialogBehavior({
+    open: Boolean(previewUrl),
+    containerRef: previewPanelRef,
+    onClose: closePreview,
+    initialFocusRef: previewCloseRef
+  });
+
+  useDialogBehavior({
+    open: passwordSheetOpen,
+    containerRef: passwordPanelRef,
+    onClose: closePasswordSheet,
+    initialFocusRef: passwordCloseRef
+  });
+
   useEffect(() => {
     setIsSecureClient(
       window.isSecureContext ||
@@ -226,6 +332,44 @@ export function FieldWorkspace({
         window.location.hostname === "127.0.0.1"
     );
   }, []);
+
+  useEffect(() => {
+    void Promise.all([loadAssignmentsSnapshot(), loadNotificationHistorySnapshot(), getFieldOutboxCount()])
+      .then(([assignmentSnapshot, notificationSnapshot, outboxCount]) => {
+        if (assignmentSnapshot?.length) {
+          setAssignments((current) => (current.length ? current : assignmentSnapshot));
+        }
+        if (notificationSnapshot) {
+          setNotificationHistoryPage((current) =>
+            current.totalCount > 0 ? current : notificationSnapshot
+          );
+          notificationPageRef.current = notificationSnapshot.page;
+        }
+        setPendingSyncCount(outboxCount);
+        if (outboxCount > 0) {
+          setSyncStatus("pending");
+        }
+      })
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    const onOnline = () => {
+      setIsOfflineMode(false);
+      void flushPendingFieldActions().catch(() => undefined);
+    };
+    const onOffline = () => {
+      setIsOfflineMode(true);
+      setSyncStatus((current) => (current === "syncing" ? "pending" : current));
+    };
+
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, [token]);
 
   async function runFieldRefresh(reason: "auto" | "resume" | "manual" | "initial") {
     if (reason !== "manual" && document.visibilityState === "hidden") {
@@ -259,10 +403,184 @@ export function FieldWorkspace({
     return task;
   }
 
+  async function syncOutboxCount() {
+    const count = await getFieldOutboxCount();
+    setPendingSyncCount(count);
+    setSyncStatus((current) => {
+      if (count === 0 && current !== "error") {
+        return current === "idle" ? "idle" : "synced";
+      }
+
+      return count > 0 && current !== "syncing" ? "pending" : current;
+    });
+  }
+
+  async function queueFieldAction(entry: FieldOutboxEntry, successMessage: string) {
+    await enqueueFieldOutboxEntry(entry);
+    await syncOutboxCount();
+    await requestFieldOutboxSync().catch(() => false);
+    setMessage(successMessage);
+  }
+
+  async function flushPendingFieldActions() {
+    if (!navigator.onLine) {
+      setIsOfflineMode(true);
+      return;
+    }
+
+    const queued = await listFieldOutboxEntries();
+    if (!queued.length) {
+      setIsOfflineMode(false);
+      setSyncStatus("synced");
+      return;
+    }
+
+    setIsOfflineMode(false);
+    setSyncStatus("syncing");
+
+    const touchedProjectIds = new Set<string>();
+    let syncedCount = 0;
+    let droppedCount = 0;
+    let retryScheduledCount = 0;
+    let replayPaused = false;
+
+    for (const entry of queued) {
+      if (entry.nextAttemptAt && Date.parse(entry.nextAttemptAt) > Date.now()) {
+        continue;
+      }
+
+      try {
+        if (entry.type === "work-start") {
+          await apiFetch(
+            `/assignments/${entry.assignmentId}/work-start`,
+            {
+              method: "POST",
+              headers: {
+                "x-idempotency-key": entry.id
+              },
+              body: JSON.stringify(entry.payload)
+            },
+            token
+          );
+        } else if (entry.type === "work-end") {
+          await apiFetch(
+            `/assignments/${entry.assignmentId}/work-end`,
+            {
+              method: "POST",
+              headers: {
+                "x-idempotency-key": entry.id
+              },
+              body: JSON.stringify(entry.payload)
+            },
+            token
+          );
+        } else if (entry.type === "field-entry") {
+          const formData = new FormData();
+          formData.set("note", entry.payload.note);
+          await apiFetch(
+            `/program-projects/${entry.dailyProgramProjectId}/entries`,
+            {
+              method: "POST",
+              headers: {
+                "x-idempotency-key": entry.id
+              },
+              body: formData
+            },
+            token
+          );
+        } else {
+          await apiFetch(
+            `/assignments/${entry.assignmentId}/location-pings`,
+            {
+              method: "POST",
+              headers: {
+                "x-idempotency-key": entry.id
+              },
+              body: JSON.stringify(entry.payload)
+            },
+            token
+          );
+        }
+
+        touchedProjectIds.add(entry.projectId);
+        syncedCount += 1;
+        await removeFieldOutboxEntry(entry.id);
+      } catch (error) {
+        const disposition = getReplayFailureDisposition(error);
+
+        if (disposition === "pause") {
+          setIsOfflineMode(true);
+          setSyncStatus("pending");
+          replayPaused = true;
+          break;
+        }
+
+        if (disposition === "drop") {
+          droppedCount += 1;
+          await removeFieldOutboxEntry(entry.id);
+          continue;
+        }
+
+        retryScheduledCount += 1;
+        const nextAttemptAt = new Date(
+          Date.now() + computeReplayBackoffMs((entry.attemptCount ?? 0) + 1)
+        ).toISOString();
+        await updateFieldOutboxEntry(entry.id, {
+          attemptCount: (entry.attemptCount ?? 0) + 1,
+          lastAttemptAt: new Date().toISOString(),
+          nextAttemptAt,
+          lastError: error instanceof Error ? error.message : "Bilinmeyen senkron hatasi"
+        });
+        setSyncStatus("pending");
+        replayPaused = true;
+        break;
+      }
+    }
+
+    await syncOutboxCount();
+
+    if (syncedCount > 0) {
+      await refreshAssignments();
+      await refreshNotificationHistory();
+      if (selectedProjectIdRef.current && touchedProjectIds.has(selectedProjectIdRef.current)) {
+        await refreshTimeline(selectedProjectIdRef.current);
+      }
+      setMessage(
+        droppedCount > 0
+          ? `${syncedCount} bekleyen kayit senkronlandi, ${droppedCount} kayit gecersiz oldugu icin atlandi.`
+          : `${syncedCount} bekleyen kayit senkronlandi.`
+      );
+      setSyncStatus(retryScheduledCount > 0 ? "pending" : "synced");
+      return;
+    }
+
+    if (droppedCount > 0) {
+      setMessage(`${droppedCount} bekleyen kayit sunucu tarafinda reddedildi ve kuyruktan kaldirildi.`);
+      setSyncStatus("error");
+      return;
+    }
+
+    if (retryScheduledCount > 0 || replayPaused) {
+      setMessage(
+        "Bazi bekleyen kayitlar gecici olarak senkronlanamadi. Sistem yeniden denemek icin kuyrukta tutuyor."
+      );
+      setSyncStatus("pending");
+    }
+  }
+
   useEffect(() => {
-    void runFieldRefresh("initial");
+    void runFieldRefresh("initial").catch(() => undefined);
     void refreshPushState();
+    void flushPendingFieldActions().catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    const unsubscribe = registerFieldOutboxSyncListener(() => {
+      void flushPendingFieldActions().catch(() => undefined);
+    });
+
+    return unsubscribe;
+  }, [token]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -307,7 +625,7 @@ export function FieldWorkspace({
       return;
     }
 
-    void refreshTimeline(selectedProjectId);
+    void refreshTimeline(selectedProjectId).catch(() => undefined);
   }, [selectedProjectId]);
 
   useEffect(() => {
@@ -343,11 +661,15 @@ export function FieldWorkspace({
         }
 
         lastSentRef.current = next;
+        const idempotencyKey = createOutboxId();
         try {
           await apiFetch(
             `/assignments/${activeAssignment.assignmentId}/location-pings`,
             {
               method: "POST",
+              headers: {
+                "x-idempotency-key": idempotencyKey
+              },
               body: JSON.stringify({
                 latitude: next.latitude,
                 longitude: next.longitude,
@@ -358,7 +680,26 @@ export function FieldWorkspace({
             token
           );
         } catch {
-          // Keep field flow uninterrupted when location pinging fails.
+          try {
+            await queueFieldAction(
+              {
+                id: idempotencyKey,
+                type: "location-ping",
+                assignmentId: activeAssignment.assignmentId,
+                projectId: activeAssignment.projectId,
+                createdAt: new Date().toISOString(),
+                payload: {
+                  latitude: next.latitude,
+                  longitude: next.longitude,
+                  accuracy: position.coords.accuracy,
+                  source: "watch"
+                }
+              },
+              "Konum kaydi baglanti gelince gonderilecek."
+            );
+          } catch {
+            // Keep field flow uninterrupted when location pinging fails.
+          }
         }
       },
       () => undefined,
@@ -386,8 +727,23 @@ export function FieldWorkspace({
   }, []);
 
   async function refreshAssignments() {
-    const data = await apiFetch<FieldAssignedProjectSummary[]>("/me/program-projects", {}, token);
-    setAssignments(data);
+    try {
+      const data = await apiFetch<FieldAssignedProjectSummary[]>("/me/program-projects", {}, token);
+      setAssignments(data);
+      await saveAssignmentsSnapshot(data);
+      setIsOfflineMode(false);
+      return data;
+    } catch (error) {
+      if (isOfflineMutationError(error)) {
+        const snapshot = await loadAssignmentsSnapshot();
+        if (snapshot) {
+          setAssignments(snapshot);
+          setIsOfflineMode(true);
+          return snapshot;
+        }
+      }
+      throw error;
+    }
   }
 
   async function refreshPushState() {
@@ -416,18 +772,49 @@ export function FieldWorkspace({
       page: String(page),
       pageSize: "10"
     });
-    const data = await apiFetch<FieldNotificationHistoryPage>(
-      `/notifications/history?${params.toString()}`,
-      {},
-      token
-    );
-    notificationPageRef.current = data.page;
-    setNotificationHistoryPage(data);
+    try {
+      const data = await apiFetch<FieldNotificationHistoryPage>(
+        `/notifications/history?${params.toString()}`,
+        {},
+        token
+      );
+      notificationPageRef.current = data.page;
+      setNotificationHistoryPage(data);
+      await saveNotificationHistorySnapshot(data);
+      setIsOfflineMode(false);
+      return data;
+    } catch (error) {
+      if (isOfflineMutationError(error)) {
+        const snapshot = await loadNotificationHistorySnapshot();
+        if (snapshot) {
+          notificationPageRef.current = snapshot.page;
+          setNotificationHistoryPage(snapshot);
+          setIsOfflineMode(true);
+          return snapshot;
+        }
+      }
+      throw error;
+    }
   }
 
   async function refreshTimeline(projectId: string) {
-    const data = await apiFetch<TimelineEntry[]>(`/projects/${projectId}/timeline`, {}, token);
-    setTimeline(data);
+    try {
+      const data = await apiFetch<TimelineEntry[]>(`/projects/${projectId}/timeline`, {}, token);
+      setTimeline(data);
+      await saveTimelineSnapshot(projectId, data);
+      setIsOfflineMode(false);
+      return data;
+    } catch (error) {
+      if (isOfflineMutationError(error)) {
+        const snapshot = await loadTimelineSnapshot(projectId);
+        if (snapshot) {
+          setTimeline(snapshot);
+          setIsOfflineMode(true);
+          return snapshot;
+        }
+      }
+      throw error;
+    }
   }
 
   async function startWork(assignment?: FieldAssignedProjectSummary | null) {
@@ -440,21 +827,65 @@ export function FieldWorkspace({
     if (!position && !isSecureClient) {
       setMessage("Telefon uygulamasi guvenli baglantida acilmadigi icin konum alinamadi. HTTPS gerekir.");
     }
-    await apiFetch(
-      `/assignments/${targetAssignment.assignmentId}/work-start`,
-      {
-        method: "POST",
-        body: JSON.stringify({
-          latitude: position?.coords.latitude,
-          longitude: position?.coords.longitude
-        })
-      },
-      token
-    );
+    const payload = {
+      latitude: position?.coords.latitude,
+      longitude: position?.coords.longitude
+    };
+    const idempotencyKey = createOutboxId();
 
-    setMessage("Sahaya ulasildi kaydi alindi.");
-    await refreshAssignments();
-    await refreshTimeline(targetAssignment.projectId);
+    try {
+      await apiFetch(
+        `/assignments/${targetAssignment.assignmentId}/work-start`,
+        {
+          method: "POST",
+          headers: {
+            "x-idempotency-key": idempotencyKey
+          },
+          body: JSON.stringify(payload)
+        },
+        token
+      );
+
+      setMessage("Sahaya ulasildi kaydi alindi.");
+      await refreshAssignments();
+      await refreshTimeline(targetAssignment.projectId);
+      await flushPendingFieldActions();
+    } catch (error) {
+      if (!isOfflineMutationError(error)) {
+        throw error;
+      }
+
+      const startedAt = new Date().toISOString();
+      setAssignments((current) =>
+        {
+          const next = current.map((item) =>
+          item.assignmentId === targetAssignment.assignmentId
+            ? {
+                ...item,
+                activeSession: {
+                  id: `pending-session-${targetAssignment.assignmentId}`,
+                  startedAt,
+                  endedAt: null
+                }
+              }
+            : item
+          );
+          void saveAssignmentsSnapshot(next);
+          return next;
+        }
+      );
+      await queueFieldAction(
+        {
+          id: idempotencyKey,
+          type: "work-start",
+          assignmentId: targetAssignment.assignmentId,
+          projectId: targetAssignment.projectId,
+          createdAt: startedAt,
+          payload
+        },
+        "Sahaya ulasildi kaydi kuyruga alindi. Baglanti gelince gonderilecek."
+      );
+    }
   }
 
   async function endWork(assignment?: FieldAssignedProjectSummary | null) {
@@ -467,21 +898,60 @@ export function FieldWorkspace({
     if (!position && !isSecureClient) {
       setMessage("Telefon uygulamasi guvenli baglantida acilmadigi icin konum alinamadi. HTTPS gerekir.");
     }
-    await apiFetch(
-      `/assignments/${targetAssignment.assignmentId}/work-end`,
-      {
-        method: "POST",
-        body: JSON.stringify({
-          latitude: position?.coords.latitude,
-          longitude: position?.coords.longitude
-        })
-      },
-      token
-    );
+    const payload = {
+      latitude: position?.coords.latitude,
+      longitude: position?.coords.longitude
+    };
+    const idempotencyKey = createOutboxId();
 
-    setMessage("Proje gun sonu kaydedildi.");
-    await refreshAssignments();
-    await refreshTimeline(targetAssignment.projectId);
+    try {
+      await apiFetch(
+        `/assignments/${targetAssignment.assignmentId}/work-end`,
+        {
+          method: "POST",
+          headers: {
+            "x-idempotency-key": idempotencyKey
+          },
+          body: JSON.stringify(payload)
+        },
+        token
+      );
+
+      setMessage("Proje gun sonu kaydedildi.");
+      await refreshAssignments();
+      await refreshTimeline(targetAssignment.projectId);
+      await flushPendingFieldActions();
+    } catch (error) {
+      if (!isOfflineMutationError(error)) {
+        throw error;
+      }
+
+      setAssignments((current) =>
+        {
+          const next = current.map((item) =>
+          item.assignmentId === targetAssignment.assignmentId
+            ? {
+                ...item,
+                activeSession: null
+              }
+            : item
+          );
+          void saveAssignmentsSnapshot(next);
+          return next;
+        }
+      );
+      await queueFieldAction(
+        {
+          id: idempotencyKey,
+          type: "work-end",
+          assignmentId: targetAssignment.assignmentId,
+          projectId: targetAssignment.projectId,
+          createdAt: new Date().toISOString(),
+          payload
+        },
+        "Gun sonu kaydi kuyruga alindi. Baglanti gelince gonderilecek."
+      );
+    }
   }
 
   async function changePassword(event: FormEvent<HTMLFormElement>) {
@@ -529,18 +999,64 @@ export function FieldWorkspace({
 
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
-    await apiFetch(
-      `/program-projects/${selectedAssignment.dailyProgramProjectId}/entries`,
-      {
-        method: "POST",
-        body: form
-      },
-      token
-    );
+    const note = String(form.get("note") ?? "").trim();
+    const idempotencyKey = createOutboxId();
+    const selectedFiles = form
+      .getAll("files")
+      .filter((value): value is File => value instanceof File && value.size > 0);
 
-    formElement.reset();
-    setMessage("Gunluk not veya dosya eklendi.");
-    await refreshTimeline(selectedAssignment.projectId);
+    try {
+      await apiFetch(
+        `/program-projects/${selectedAssignment.dailyProgramProjectId}/entries`,
+        {
+          method: "POST",
+          headers: {
+            "x-idempotency-key": idempotencyKey
+          },
+          body: form
+        },
+        token
+      );
+
+      formElement.reset();
+      setMessage("Gunluk not veya dosya eklendi.");
+      await refreshTimeline(selectedAssignment.projectId);
+      await flushPendingFieldActions();
+    } catch (error) {
+      if (!isOfflineMutationError(error)) {
+        throw error;
+      }
+
+      if (selectedFiles.length > 0) {
+        setMessage("Dosyali kayitlar offline kuyruga alinmiyor. Baglanti geldiginde tekrar deneyin.");
+        return;
+      }
+
+      if (!note) {
+        setMessage("Offline kayit icin en az bir not girmeniz gerekiyor.");
+        return;
+      }
+
+      setTimeline((current) => {
+        const next = [createPendingTimelineEntry(selectedAssignment, user, note), ...current];
+        void saveTimelineSnapshot(selectedAssignment.projectId, next);
+        return next;
+      });
+      formElement.reset();
+      await queueFieldAction(
+        {
+          id: idempotencyKey,
+          type: "field-entry",
+          dailyProgramProjectId: selectedAssignment.dailyProgramProjectId,
+          projectId: selectedAssignment.projectId,
+          createdAt: new Date().toISOString(),
+          payload: {
+            note
+          }
+        },
+        "Gunluk not kuyruga alindi. Baglanti gelince gonderilecek."
+      );
+    }
   }
 
   async function enablePushNotifications() {
@@ -600,6 +1116,14 @@ export function FieldWorkspace({
     }
     setPreviewUrl(null);
     setPreviewName(null);
+  }
+
+  function closePasswordSheet() {
+    setPasswordSheetOpen(false);
+    setPasswordError(null);
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
   }
 
   async function openProtectedFile(path: string, mode: "preview" | "download") {
@@ -672,15 +1196,66 @@ export function FieldWorkspace({
     setHomeTab(nextTab);
   }
 
+  function renderHomeHeader() {
+    const copyByTab = {
+      projects: {
+        kicker: "Bugunun plani",
+        title: "Atanmis saha isleri",
+        description: "Birincil aksiyonlari hizli ulas, ikincil detaylari kart icinden ac.",
+        count: `${assignments.length} proje`
+      },
+      notifications: {
+        kicker: "Bildirim merkezi",
+        title: "Size gonderilenler",
+        description: "Son kampanyalari ve teslim edilen mesajlari ayni akista inceleyin.",
+        count: `${notificationHistoryPage.totalCount} kayit`
+      },
+      device: {
+        kicker: "Cihaz ve hesap",
+        title: "Guvenlik islemleri",
+        description: "Push, sifre ve oturum alanlarini tek yerde yonetin.",
+        count: pushEnabled ? "Bildirim acik" : "Bildirim kapali"
+      }
+    } as const;
+
+    const current = copyByTab[homeTab];
+
+    return (
+      <section className="field-v3-topbar">
+        <div className="field-v3-topbar-main">
+          <span className="field-v3-kicker">{current.kicker}</span>
+          <h2>{current.title}</h2>
+          <p className="field-v3-inlinecopy">{current.description}</p>
+          <div className="field-v3-topbar-meta">
+            <span>{homeProgramDateLabel}</span>
+            <span>{current.count}</span>
+            <span>{activeSessionCount} aktif oturum</span>
+          </div>
+        </div>
+        <div className="field-v3-topbar-side">
+          <div className="field-v3-utility field-v3-utility-compact">
+            <strong>{user.displayName}</strong>
+            <span>{homeTab === "projects" ? "Saha calisma yuzeyi" : "Mobil yonetim"}</span>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   function renderDetailView() {
     if (!selectedAssignment) {
       return null;
     }
 
+    const mapsHref = buildMapsHref(selectedAssignment);
+    const activeLabel = selectedAssignment.activeSession
+      ? `Aktif / ${formatTime(selectedAssignment.activeSession.startedAt)}`
+      : "Bekliyor";
+
     return (
       <>
         <div ref={detailTopRef} />
-        <div className="field-v4-detailbar">
+        <section className="field-v3-topbar field-v3-topbar-detail field-v4-detailhero">
           <button
             className="field-v3-utility field-v4-backbutton"
             type="button"
@@ -692,21 +1267,65 @@ export function FieldWorkspace({
             <BackIcon />
             <span>Projeler</span>
           </button>
-        </div>
+          <div className="field-v3-topbar-copy">
+            <span className="field-v3-kicker">Proje detayi</span>
+            <h2>{selectedAssignment.projectName}</h2>
+            <div className="field-v3-topbar-meta">
+              <span>{selectedAssignment.customerName ?? "Cari tanimli degil"}</span>
+              <span>{footerDateLabel}</span>
+              <span>{activeLabel}</span>
+            </div>
+          </div>
+          <div className={`chip field-v3-status ${selectedAssignment.activeSession ? "is-active" : "is-idle"}`}>
+            {selectedAssignment.activeSession ? "Sahada" : "Beklemede"}
+          </div>
+        </section>
 
         {message ? <div className="alert field-v3-banner">{message}</div> : null}
+        {syncMessage ? <div className="field-v4-inlinehint">{syncMessage}</div> : null}
 
         <section className="field-v3-screen field-v4-detailstack">
           <div className="field-v3-panel field-v4-compactpanel field-v4-detailpanel">
             <div className="field-v3-panelhead">
               <div>
-                <span className="field-v3-kicker">Proje adi</span>
-                <h3>{selectedAssignment.projectName}</h3>
+                <span className="field-v3-kicker">Hizli aksiyonlar</span>
+                <h3>Rota ve is akisi</h3>
               </div>
+              <div className="chip field-v3-chip-soft">{activeLabel}</div>
             </div>
-            {selectedAssignment.customerName ? (
-              <div className="field-v4-inline-meta">{selectedAssignment.customerName}</div>
-            ) : null}
+            <div className="field-v3-rowactions field-v4-projectactions">
+              <button
+                className="button ghost"
+                disabled={!mapsHref}
+                onClick={() => openMapsForAssignment(selectedAssignment)}
+                type="button"
+              >
+                <LocationArrowIcon />
+                <span>Haritayi ac</span>
+              </button>
+              <button
+                className="button success"
+                type="button"
+                onClick={() => void startWork(selectedAssignment)}
+                disabled={Boolean(
+                  activeAssignment &&
+                    !selectedAssignment.activeSession &&
+                    activeAssignment.assignmentId !== selectedAssignment.assignmentId
+                )}
+              >
+                <CheckCircleIcon />
+                <span>Sahaya ulastim</span>
+              </button>
+              <button
+                className="button danger"
+                type="button"
+                onClick={() => void endWork(selectedAssignment)}
+                disabled={!selectedAssignment.activeSession}
+              >
+                <PowerIcon />
+                <span>Gun sonu</span>
+              </button>
+            </div>
           </div>
 
           <div className="field-v3-panel field-v4-compactpanel field-v4-detailpanel">
@@ -797,7 +1416,10 @@ export function FieldWorkspace({
   function renderHomeView() {
     return (
       <>
+        {renderHomeHeader()}
+
         {message ? <div className="alert field-v3-banner">{message}</div> : null}
+        {syncMessage ? <div className="field-v4-inlinehint">{syncMessage}</div> : null}
 
         {homeTab === "projects" ? (
           <section className="field-v3-screen">
@@ -843,17 +1465,14 @@ export function FieldWorkspace({
                               : "Bekliyor"
                           }
                         />
+                        <FieldSheetCell
+                          icon={<LocationArrowIcon />}
+                          label="Konum"
+                          value={assignment.locationLabel ?? "Konum bekleniyor"}
+                        />
                       </div>
 
-                      <div className="field-v3-rowactions field-v4-projectactions">
-                        <button
-                          className="button ghost"
-                          onClick={() => openMapsForAssignment(assignment)}
-                          type="button"
-                        >
-                          <LocationArrowIcon />
-                          <span>Haritayi ac</span>
-                        </button>
+                      <div className="field-v4-projectactions field-v4-projectactions-primary">
                         <button
                           className="button success"
                           type="button"
@@ -876,8 +1495,18 @@ export function FieldWorkspace({
                           <PowerIcon />
                           <span>Gun sonu</span>
                         </button>
+                      </div>
+                      <div className="field-v3-rowactions field-v4-projectactions field-v4-projectactions-secondary">
                         <button
-                          className="button"
+                          className="button ghost"
+                          onClick={() => openMapsForAssignment(assignment)}
+                          type="button"
+                        >
+                          <LocationArrowIcon />
+                          <span>Haritayi ac</span>
+                        </button>
+                        <button
+                          className="button secondary"
                           onClick={() => setSelectedAssignmentId(assignment.assignmentId)}
                           type="button"
                         >
@@ -1054,13 +1683,13 @@ export function FieldWorkspace({
       {previewUrl ? (
         <div className="field-v3-preview-shell">
           <button aria-label="Kapat" className="field-v3-preview-backdrop" type="button" onClick={closePreview} />
-          <div className="field-v3-preview-panel glass">
+          <div className="field-v3-preview-panel glass" ref={previewPanelRef} tabIndex={-1}>
             <div className="field-v3-preview-header">
               <div>
                 <div className="field-v3-kicker">Dosya onizleme</div>
                 <h2>{previewName}</h2>
               </div>
-              <button className="button ghost" type="button" onClick={closePreview}>
+              <button className="button ghost" ref={previewCloseRef} type="button" onClick={closePreview}>
                 <BackIcon />
                 <span>Kapat</span>
               </button>
@@ -1086,15 +1715,9 @@ export function FieldWorkspace({
             aria-label="Kapat"
             className="field-v3-preview-backdrop"
             type="button"
-            onClick={() => {
-              setPasswordSheetOpen(false);
-              setPasswordError(null);
-              setCurrentPassword("");
-              setNewPassword("");
-              setConfirmPassword("");
-            }}
+            onClick={closePasswordSheet}
           />
-          <div className="field-v4-sheet-panel glass">
+          <div className="field-v4-sheet-panel glass" ref={passwordPanelRef} tabIndex={-1}>
             <div className="field-v3-panelhead">
               <div>
                 <span className="field-v3-kicker">Sifre degistir</span>
@@ -1102,14 +1725,9 @@ export function FieldWorkspace({
               </div>
               <button
                 className="button ghost"
+                ref={passwordCloseRef}
                 type="button"
-                onClick={() => {
-                  setPasswordSheetOpen(false);
-                  setPasswordError(null);
-                  setCurrentPassword("");
-                  setNewPassword("");
-                  setConfirmPassword("");
-                }}
+                onClick={closePasswordSheet}
               >
                 <BackIcon />
                 <span>Kapat</span>

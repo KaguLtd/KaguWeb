@@ -288,12 +288,107 @@ export interface ManagerDashboardNotificationSummary {
   failedCount: number;
 }
 
+export interface ManagerDashboardRoutingStopSummary {
+  recommendationRank: number;
+  projectId: string;
+  projectName: string;
+  assignmentCount: number;
+  activeSessionCount: number;
+  distanceFromPreviousKm: number | null;
+}
+
+export interface ManagerDashboardRoutingSummary {
+  routeMode: string;
+  anchor: {
+    strategy: string;
+    userId: string | null;
+    projectId: string;
+    latitude: number;
+    longitude: number;
+  } | null;
+  recommendedStopCount: number;
+  skippedProjectCount: number;
+  topStops: ManagerDashboardRoutingStopSummary[];
+}
+
+export interface ManagerDashboardFieldFormResponseSummaryItem {
+  id: string;
+  templateId: string;
+  templateName: string;
+  templateVersionId: string;
+  templateVersionNumber: number;
+  templateVersionTitle: string;
+  projectId: string;
+  projectName: string;
+  actor: SessionUser;
+  createdAt: string;
+}
+
+export interface ManagerDashboardFieldFormSummary {
+  totalCount: number;
+  uniqueTemplateCount: number;
+  uniqueProjectCount: number;
+  recentResponses: ManagerDashboardFieldFormResponseSummaryItem[];
+}
+
+export type FieldFormFieldType =
+  | "TEXT"
+  | "TEXTAREA"
+  | "NUMBER"
+  | "BOOLEAN"
+  | "DATE"
+  | "SELECT";
+
+export interface FieldFormSchemaField {
+  key: string;
+  label: string;
+  type: FieldFormFieldType;
+  required?: boolean;
+  options?: string[];
+}
+
+export interface FieldFormTemplateVersionSummary {
+  id: string;
+  versionNumber: number;
+  title: string;
+  createdAt: string;
+}
+
+export interface FieldFormTemplateSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  latestVersion: FieldFormTemplateVersionSummary | null;
+  responseCount: number;
+}
+
+export interface FieldFormTemplateDetailVersion extends FieldFormTemplateVersionSummary {
+  schema: {
+    fields: FieldFormSchemaField[];
+  };
+}
+
+export interface FieldFormTemplateDetail {
+  id: string;
+  name: string;
+  description: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  versions: FieldFormTemplateDetailVersion[];
+}
+
 export interface ManagerDashboardResponse {
   selectedDate: string;
   summaryCards: ManagerDashboardSummaryCards;
   programProjects: ManagerDashboardProgramProject[];
   recentActivities: ManagerDashboardActivity[];
   activeSessions: ManagerDashboardActiveSession[];
+  routingSummary: ManagerDashboardRoutingSummary;
+  fieldFormSummary: ManagerDashboardFieldFormSummary;
   notificationSummary: ManagerDashboardNotificationSummary;
 }
 

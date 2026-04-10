@@ -7,11 +7,8 @@ import {
   NotFoundException
 } from "@nestjs/common";
 import { FileCategory, FileScope, Prisma, Role } from "@prisma/client";
-import { createReadStream } from "fs";
-import { dirname, join, relative } from "path";
 import { randomUUID } from "crypto";
 import { CurrentUserPayload } from "../common/decorators/current-user.decorator";
-import { formatDateOnly } from "../common/utils/date";
 import {
   ensureFileAllowed,
   fileExtension,
@@ -20,16 +17,9 @@ import {
   isInlinePreviewable,
   sanitizeFilename
 } from "../common/utils/file-policy";
-import {
-  ensureDir,
-  getStorageRoot,
-  removeEmptyStorageDirectories,
-  removeStoredFiles,
-  removeStorageTree,
-  resolveStoragePath,
-  writeBufferToStorage
-} from "../common/utils/storage";
 import { PrismaService } from "../prisma/prisma.service";
+import { StorageDriver } from "../storage/storage-driver";
+import { StoragePathService } from "../storage/storage-path.service";
 import { CreateCustomerDto } from "./dto/create-customer.dto";
 import { CreateProjectDto } from "./dto/create-project.dto";
 import { ProjectFiltersDto } from "./dto/project-filters.dto";
@@ -54,7 +44,9 @@ export class ProjectsService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly storageService: StorageService
+    private readonly storageService: StorageService,
+    private readonly storageDriver: StorageDriver,
+    private readonly storagePaths: StoragePathService
   ) {}
 
   async createCustomer(dto: CreateCustomerDto, actor: CurrentUserPayload) {
@@ -118,12 +110,11 @@ export class ProjectsService {
       },
       customer ?? null
     );
-    const projectRoot = join(getStorageRoot(), storageRoot);
 
     try {
       await Promise.all([
-        ensureDir(join(projectRoot, "main")),
-        ensureDir(join(projectRoot, "timeline"))
+        this.storageDriver.ensureDirectory(this.storagePaths.projectMainRoot(storageRoot)),
+        this.storageDriver.ensureDirectory(this.storagePaths.projectTimelineRoot(storageRoot))
       ]);
     } catch (error) {
       await this.cleanupStorageTree(storageRoot, "Proje storage iskeleti hazirlanamadi.");
@@ -494,7 +485,7 @@ export class ProjectsService {
     await this.assertProjectAccess(version.file.projectId, user);
 
     return {
-      stream: createReadStream(resolveStoragePath(version.storagePath)),
+      stream: this.storageDriver.createReadStream(version.storagePath),
       version,
       inline: inline && isInlinePreviewable(version.originalName)
     };
@@ -503,42 +494,103 @@ export class ProjectsService {
   async getTimeline(projectId: string, user: CurrentUserPayload) {
     await this.assertProjectAccess(projectId, user);
 
-    const entries = await this.prisma.projectEntry.findMany({
-      where: { projectId },
-      include: {
-        actor: {
-          select: {
-            id: true,
-            username: true,
-            displayName: true,
-            role: true
-          }
-        },
-        files: {
-          include: {
-            versions: {
-              orderBy: { versionNumber: "desc" },
-              take: 1
+    const [entries, fieldFormResponses] = await Promise.all([
+      this.prisma.projectEntry.findMany({
+        where: { projectId },
+        include: {
+          actor: {
+            select: {
+              id: true,
+              username: true,
+              displayName: true,
+              role: true
+            }
+          },
+          files: {
+            include: {
+              versions: {
+                orderBy: { versionNumber: "desc" },
+                take: 1
+              }
             }
           }
-        }
-      },
-      orderBy: [{ entryDate: "desc" }, { createdAt: "desc" }]
-    });
+        },
+        orderBy: [{ entryDate: "desc" }, { createdAt: "desc" }]
+      }),
+      this.prisma.fieldFormResponse.findMany({
+        where: { projectId },
+        include: {
+          actor: {
+            select: {
+              id: true,
+              username: true,
+              displayName: true,
+              role: true
+            }
+          },
+          template: {
+            select: {
+              id: true,
+              name: true
+            }
+          },
+          templateVersion: {
+            select: {
+              id: true,
+              versionNumber: true,
+              title: true
+            }
+          }
+        },
+        orderBy: { createdAt: "desc" }
+      })
+    ]);
 
-    return entries.map((entry) => ({
-      id: entry.id,
-      projectId: entry.projectId,
-      entryType: entry.entryType,
-      note: entry.note,
-      entryDate: entry.entryDate.toISOString(),
-      createdAt: entry.createdAt.toISOString(),
-      actor: entry.actor,
-      files: entry.files
-        .map((file) => file.versions[0])
-        .filter(Boolean)
-        .map((version) => this.mapFileVersion(version!))
-    }));
+    const timeline = [
+      ...entries.map((entry) => ({
+        id: entry.id,
+        projectId: entry.projectId,
+        entryType: entry.entryType,
+        note: entry.note,
+        entryDate: entry.entryDate.toISOString(),
+        createdAt: entry.createdAt.toISOString(),
+        actor: entry.actor,
+        files: entry.files
+          .map((file) => file.versions[0])
+          .filter(Boolean)
+          .map((version) => this.mapFileVersion(version!)),
+        formResponse: undefined
+      })),
+      ...fieldFormResponses.map((response) => ({
+        id: response.id,
+        projectId: response.projectId,
+        entryType: "FIELD_FORM_RESPONSE",
+        note: null,
+        entryDate: response.createdAt.toISOString(),
+        createdAt: response.createdAt.toISOString(),
+        actor: response.actor,
+        files: [],
+        formResponse: {
+          id: response.id,
+          templateId: response.template.id,
+          templateName: response.template.name,
+          templateVersionId: response.templateVersion.id,
+          templateVersionNumber: response.templateVersion.versionNumber,
+          templateVersionTitle: response.templateVersion.title,
+          dailyProgramProjectId: response.dailyProgramProjectId,
+          projectEntryId: response.projectEntryId,
+          payload: response.payload
+        }
+      }))
+    ];
+
+    return timeline.sort((left, right) => {
+      if (left.entryDate !== right.entryDate) {
+        return right.entryDate.localeCompare(left.entryDate);
+      }
+
+      return right.createdAt.localeCompare(left.createdAt);
+    });
   }
 
   async getLocationFeed(projectId: string, user: CurrentUserPayload) {
@@ -577,8 +629,8 @@ export class ProjectsService {
         } catch (error) {
           throw new BadRequestException((error as Error).message);
         }
-        const staged = await writeBufferToStorage(
-          `${project.storageRoot}/timeline/${formatDateOnly(entryDate)}`,
+        const staged = await this.storageDriver.writeBuffer(
+          this.storagePaths.projectTimelineUploadDirectory(project.storageRoot, entryDate),
           sanitizeFilename(file.originalname),
           file.buffer
         );
@@ -715,9 +767,8 @@ export class ProjectsService {
         }
 
         const title = dto.title && files.length === 1 ? dto.title : fileTitleFromName(file.originalname);
-        const dayDirectory = formatDateOnly(new Date());
-        const staged = await writeBufferToStorage(
-          `${storageRoot}/main/${dayDirectory}/${sanitizeFilename(title)}`,
+        const staged = await this.storageDriver.writeBuffer(
+          this.storagePaths.projectMainUploadDirectory(storageRoot, title, new Date()),
           sanitizeFilename(file.originalname),
           file.buffer
         );
@@ -753,8 +804,8 @@ export class ProjectsService {
     message: string
   ) {
     try {
-      await removeStoredFiles(storagePaths);
-      await removeEmptyStorageDirectories(directoryPaths, stopAt);
+      await this.storageDriver.removeFiles(storagePaths);
+      await this.storageDriver.removeEmptyDirectories(directoryPaths, stopAt);
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       this.logger.error(`${message} (${detail})`);
@@ -763,7 +814,7 @@ export class ProjectsService {
 
   private async cleanupStorageTree(relativePath: string, message: string) {
     try {
-      await removeStorageTree(relativePath);
+      await this.storageDriver.removeTree(relativePath);
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       this.logger.error(`${message} (${detail})`);
@@ -771,10 +822,7 @@ export class ProjectsService {
   }
 
   private directoryNameFromStoragePath(storagePath: string) {
-    return relative(
-      getStorageRoot(),
-      dirname(resolveStoragePath(storagePath))
-    ).replaceAll("\\", "/");
+    return this.storagePaths.relativeDirectory(storagePath);
   }
 
   private projectListInclude() {
@@ -788,7 +836,7 @@ export class ProjectsService {
         select: { id: true }
       },
       _count: {
-        select: { entries: true }
+        select: { entries: true, fieldFormResponses: true }
       }
     } satisfies Prisma.ProjectInclude;
   }
@@ -860,7 +908,7 @@ export class ProjectsService {
     } | null;
     files: Array<{ id: string }>;
     programProjects: Array<{ id: string }>;
-    _count: { entries: number };
+    _count: { entries: number; fieldFormResponses: number };
   }) {
     return {
       id: project.id,
@@ -877,7 +925,8 @@ export class ProjectsService {
       customer: project.customer ? this.mapCustomer(project.customer) : null,
       mainFileCount: project.files.length,
       programUsageCount: project.programProjects.length,
-      timelineEntryCount: project._count.entries
+      timelineEntryCount: project._count.entries,
+      fieldFormResponseCount: project._count.fieldFormResponses
     };
   }
 

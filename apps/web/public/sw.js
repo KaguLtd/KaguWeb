@@ -1,3 +1,20 @@
+self.FIELD_OUTBOX_SYNC_TAG = "kagu-field-outbox";
+
+function notifyFieldOutboxSync(source) {
+  return self.clients
+    .matchAll({ type: "window", includeUncontrolled: true })
+    .then((clients) =>
+      Promise.all(
+        clients.map((client) =>
+          client.postMessage({
+            type: "KAGU_SYNC_FIELD_OUTBOX",
+            source
+          })
+        )
+      )
+    );
+}
+
 self.addEventListener("install", () => {
   self.skipWaiting();
 });
@@ -7,7 +24,23 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", () => {
-  // Intentionally minimal. v1 keeps offline sync out of scope.
+  // Keep fetch handling minimal; service worker only nudges the app-driven field queue.
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type !== "KAGU_SYNC_FIELD_OUTBOX") {
+    return;
+  }
+
+  event.waitUntil(notifyFieldOutboxSync(event.data?.source || "message"));
+});
+
+self.addEventListener("sync", (event) => {
+  if (event.tag !== self.FIELD_OUTBOX_SYNC_TAG) {
+    return;
+  }
+
+  event.waitUntil(notifyFieldOutboxSync("background-sync"));
 });
 
 self.addEventListener("push", (event) => {

@@ -43,6 +43,25 @@ enum NotificationDeliveryStatus {
   FAILED
 }
 
+enum IdempotencyStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum RecurrenceFrequency {
+  WEEKLY
+}
+
+enum FieldFormFieldType {
+  TEXT
+  TEXTAREA
+  NUMBER
+  BOOLEAN
+  DATE
+  SELECT
+  SIGNATURE
+}
+
 model User {
   id                      String                     @id @default(cuid())
   username                String                     @unique
@@ -66,6 +85,10 @@ model User {
   sentNotificationCampaigns NotificationCampaign[]   @relation("NotificationSender")
   receivedNotificationDeliveries NotificationDelivery[] @relation("NotificationTarget")
   authSessions            AuthSession[]
+  createdProgramTemplates ProgramTemplate[]            @relation("ProgramTemplateCreator")
+  templateAssignments     ProgramTemplateAssignment[]  @relation("TemplateAssignmentUser")
+  createdFieldFormTemplates FieldFormTemplate[]        @relation("FieldFormTemplateCreator")
+  fieldFormResponses      FieldFormResponse[]          @relation("FieldFormResponseActor")
 }
 
 model AuthSession {
@@ -115,6 +138,8 @@ model Project {
   files           ProjectFile[]
   entries         ProjectEntry[]
   locationPings   LocationPing[]
+  programTemplates ProgramTemplateProject[]
+  fieldFormResponses FieldFormResponse[]
 }
 
 model DailyProgram {
@@ -129,6 +154,113 @@ model DailyProgram {
   notificationCampaigns NotificationCampaign[]
 }
 
+model ProgramTemplate {
+  id                String                       @id @default(cuid())
+  name              String
+  managerNote       String?
+  isActive          Boolean                      @default(true)
+  createdById       String
+  createdAt         DateTime                     @default(now())
+  updatedAt         DateTime                     @updatedAt
+  createdBy         User                         @relation("ProgramTemplateCreator", fields: [createdById], references: [id])
+  recurrenceRules   ProgramTemplateRecurrenceRule[]
+  templateProjects  ProgramTemplateProject[]
+}
+
+model ProgramTemplateRecurrenceRule {
+  id                String              @id @default(cuid())
+  programTemplateId String
+  frequency         RecurrenceFrequency
+  interval          Int                 @default(1)
+  weekdays          Int[]
+  startDate         DateTime            @db.Date
+  endDate           DateTime?           @db.Date
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  programTemplate   ProgramTemplate     @relation(fields: [programTemplateId], references: [id], onDelete: Cascade)
+
+  @@index([programTemplateId])
+}
+
+model ProgramTemplateProject {
+  id                String                    @id @default(cuid())
+  programTemplateId String
+  projectId         String
+  sortOrder         Int                       @default(0)
+  note              String?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  programTemplate   ProgramTemplate           @relation(fields: [programTemplateId], references: [id], onDelete: Cascade)
+  project           Project                   @relation(fields: [projectId], references: [id])
+  assignments       ProgramTemplateAssignment[]
+
+  @@unique([programTemplateId, projectId])
+  @@index([programTemplateId, sortOrder])
+}
+
+model ProgramTemplateAssignment {
+  id                String                 @id @default(cuid())
+  templateProjectId String
+  userId            String
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  templateProject   ProgramTemplateProject @relation(fields: [templateProjectId], references: [id], onDelete: Cascade)
+  user              User                   @relation("TemplateAssignmentUser", fields: [userId], references: [id])
+
+  @@unique([templateProjectId, userId])
+  @@index([userId])
+}
+
+model FieldFormTemplate {
+  id          String                   @id @default(cuid())
+  name        String
+  description String?
+  isActive    Boolean                  @default(true)
+  createdById String
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+  createdBy   User                     @relation("FieldFormTemplateCreator", fields: [createdById], references: [id])
+  versions    FieldFormTemplateVersion[]
+  responses   FieldFormResponse[]
+}
+
+model FieldFormTemplateVersion {
+  id            String             @id @default(cuid())
+  templateId    String
+  versionNumber Int
+  title         String
+  schema        Json
+  createdAt     DateTime           @default(now())
+  template      FieldFormTemplate  @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  responses     FieldFormResponse[]
+
+  @@unique([templateId, versionNumber])
+  @@index([templateId, createdAt])
+}
+
+model FieldFormResponse {
+  id                String                   @id @default(cuid())
+  templateId        String
+  templateVersionId String
+  projectId         String
+  dailyProgramProjectId String?
+  projectEntryId    String?
+  actorId           String
+  payload           Json
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  template          FieldFormTemplate        @relation(fields: [templateId], references: [id])
+  templateVersion   FieldFormTemplateVersion @relation(fields: [templateVersionId], references: [id])
+  project           Project                  @relation(fields: [projectId], references: [id])
+  dailyProgramProject DailyProgramProject?   @relation(fields: [dailyProgramProjectId], references: [id])
+  projectEntry      ProjectEntry?            @relation(fields: [projectEntryId], references: [id])
+  actor             User                     @relation("FieldFormResponseActor", fields: [actorId], references: [id])
+
+  @@index([projectId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([templateId, createdAt])
+}
+
 model DailyProgramProject {
   id              String              @id @default(cuid())
   dailyProgramId  String
@@ -141,6 +273,7 @@ model DailyProgramProject {
   addedBy         User                @relation("ProgramProjectAdder", fields: [addedById], references: [id])
   assignments     ProjectAssignment[]
   entries         ProjectEntry[]
+  fieldFormResponses FieldFormResponse[]
 
   @@unique([dailyProgramId, projectId])
   @@index([dailyProgramId, sortOrder])
@@ -202,6 +335,7 @@ model ProjectEntry {
   actor             User              @relation("EntryActor", fields: [actorId], references: [id])
   workSession       WorkSession?      @relation(fields: [workSessionId], references: [id])
   files             ProjectFile[]     @relation("EntryFiles")
+  fieldFormResponses FieldFormResponse[]
 
   @@index([projectId, createdAt])
   @@index([dailyProgramProjectId, createdAt])
@@ -308,4 +442,18 @@ model NotificationDelivery {
 
   @@index([campaignId])
   @@index([targetUserId, createdAt])
+}
+
+model IdempotencyKey {
+  id        String            @id @default(cuid())
+  actorId   String
+  scope     String
+  key       String
+  status    IdempotencyStatus @default(IN_PROGRESS)
+  response  Json?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@unique([actorId, scope, key])
+  @@index([createdAt])
 }

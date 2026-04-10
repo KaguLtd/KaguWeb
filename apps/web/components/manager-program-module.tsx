@@ -15,7 +15,7 @@ import {
   shiftDateString
 } from "../lib/date";
 import { useAuth } from "./auth-provider";
-import { ManagerDrawer } from "./manager-ui";
+import { ManagerDrawer, ManagerDrawerSection } from "./manager-ui";
 import { useSyncedDashboardDate } from "./use-synced-dashboard-date";
 
 const DATE_WINDOW_RADIUS = 45;
@@ -108,6 +108,7 @@ export function ManagerProgramModule() {
     return current.some((value, index) => value !== initialAssignmentIds[index]);
   }, [assignmentDraft, initialAssignmentIds]);
   const hasEntryDraft = Boolean(entryNote.trim() || entryFiles.length);
+  const hasPendingChanges = hasAssignmentChanges || hasEntryDraft;
   const filteredProjects = useMemo(() => {
     const query = projectSearch.trim().toLocaleLowerCase("tr-TR");
     if (!query) {
@@ -429,10 +430,13 @@ export function ManagerProgramModule() {
   return (
     <>
       <div className="manager-module manager-stack-layout">
-        <section className="manager-command-surface">
+        <section className="manager-command-surface manager-command-surface-grid">
           <div className="manager-command-copy">
             <span className="manager-command-kicker">Gunluk Program</span>
             <h2 className="manager-block-title">Secili gun atamalari</h2>
+            <p className="manager-block-copy">
+              Tarih seridinden gun secin, projeyi gune ekleyin ve ekip/not akislarini ayni panelden yonetin.
+            </p>
             {!program?.programProjects.length ? (
               <div className="empty">Secili gunde atama yok.</div>
             ) : (
@@ -491,6 +495,29 @@ export function ManagerProgramModule() {
         </section>
 
         {moduleMessage ? <div className="alert">{moduleMessage}</div> : null}
+
+        <section className="manager-stat-ribbon manager-stat-ribbon-compact">
+          <article className="manager-stat-card">
+            <span>Secili gun</span>
+            <strong>{selectedDate.slice(-2)}</strong>
+            <small>{formatDisplayDate(selectedDate)}</small>
+          </article>
+          <article className="manager-stat-card">
+            <span>Program proje</span>
+            <strong>{loading ? "..." : program?.programProjects.length ?? 0}</strong>
+            <small>Secili gunde acik kayit</small>
+          </article>
+          <article className="manager-stat-card">
+            <span>Secili ekip</span>
+            <strong>{selectedProgramProject ? assignmentDraft.length : 0}</strong>
+            <small>Drawer icinde secili personel</small>
+          </article>
+          <article className="manager-stat-card">
+            <span>Bekleyen degisiklik</span>
+            <strong>{hasPendingChanges ? "Var" : "Yok"}</strong>
+            <small>Kaydet ve Kapat sonrasi islenir</small>
+          </article>
+        </section>
 
         <section className="manager-surface-card">
           <div className="manager-section-head compact">
@@ -555,17 +582,26 @@ export function ManagerProgramModule() {
         onClose={() => setProgramDrawerOpen(false)}
         open={programDrawerOpen}
         title={`${formatDisplayDate(selectedDate)} Programi`}
+        description="Proje secimi, ekip atama ve gunluk not akislarini tek yan panelden yonetin."
+        badge={
+          <span className={`manager-inline-badge ${hasPendingChanges ? "is-warn" : "is-positive"}`}>
+            {hasPendingChanges ? "Kayit bekliyor" : "Kayit guncel"}
+          </span>
+        }
       >
         <div className="stack">
           {drawerMessage ? <div className="alert">{drawerMessage}</div> : null}
 
-          <section className="stack">
-            <div className="manager-section-head compact">
-              <h3 className="manager-section-title">Proje Secimi</h3>
+          <ManagerDrawerSection
+            eyebrow="Adim 1"
+            title="Proje secimi"
+            description="Secili tarih icin projeyi ekleyin veya mevcut kaydi gunden kaldirin."
+            meta={
               <span className="manager-mini-chip">
                 {selectedProgramProject ? "Duzenleme" : "Gune ekleme"}
               </span>
-            </div>
+            }
+          >
             <div className="split two">
               <div className="manager-combobox program-project-picker" ref={projectPickerRef}>
                 <button
@@ -671,7 +707,7 @@ export function ManagerProgramModule() {
                 </table>
               </div>
             ) : null}
-          </section>
+          </ManagerDrawerSection>
 
           {!selectedProgramProject ? (
             <div className="empty">
@@ -679,11 +715,12 @@ export function ManagerProgramModule() {
             </div>
           ) : (
             <>
-              <section className="stack">
-                <div className="manager-section-head compact">
-                  <h3 className="manager-section-title">Ekip Atama</h3>
-                  <span className="manager-mini-chip">{assignmentDraft.length} secili</span>
-                </div>
+              <ManagerDrawerSection
+                eyebrow="Adim 2"
+                title="Ekip atama"
+                description="Saha personeli secimleri yalnizca Kaydet ve Kapat sonrasinda sunucuya yazilir."
+                meta={<span className="manager-mini-chip">{assignmentDraft.length} secili</span>}
+              >
                 <div className="program-selected-assignees">
                   {selectedAssignmentUsers.length ? (
                     selectedAssignmentUsers.map((user) => (
@@ -723,15 +760,14 @@ export function ManagerProgramModule() {
                     );
                   })}
                 </div>
-              </section>
+              </ManagerDrawerSection>
 
-              <section className="stack">
-                <div className="manager-section-head compact">
-                  <h3 className="manager-section-title">Notlar</h3>
-                  <span className="manager-mini-chip">
-                    {selectedProgramProject.dayEntries?.length ?? 0}
-                  </span>
-                </div>
+              <ManagerDrawerSection
+                eyebrow="Adim 3"
+                title="Notlar ve ekler"
+                description="Yeni not veya dosya ekleri bu panelde bekler ve kaydetme aninda islenir."
+                meta={<span className="manager-mini-chip">{selectedProgramProject.dayEntries?.length ?? 0}</span>}
+              >
                 {!selectedProgramProject.dayEntries?.length ? (
                   <div className="empty">Secili proje icin kayit yok.</div>
                 ) : (
@@ -774,13 +810,16 @@ export function ManagerProgramModule() {
                     type="file"
                   />
                 </div>
-              </section>
+              </ManagerDrawerSection>
             </>
           )}
 
-          <div className="toolbar">
+          <div className="toolbar manager-action-foot">
+            <span className={`manager-inline-badge ${hasPendingChanges ? "is-warn" : "is-positive"}`}>
+              {hasPendingChanges ? "Kaydedilmeyi bekleyen degisiklik var" : "Tum degisiklikler kaydedildi"}
+            </span>
             <button className="button" disabled={saving} onClick={() => void saveAndCloseDrawer()} type="button">
-              Kaydet ve Kapat
+              {saving ? "Kaydediliyor..." : "Kaydet ve Kapat"}
             </button>
           </div>
         </div>

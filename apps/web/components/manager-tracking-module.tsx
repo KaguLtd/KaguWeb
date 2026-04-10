@@ -11,7 +11,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { apiFetch, isAbortError } from "../lib/api";
 import { formatDisplayDateTime } from "../lib/date";
 import { useAuth } from "./auth-provider";
-import { ManagerDrawer } from "./manager-ui";
+import { ManagerDrawer, ManagerDrawerSection } from "./manager-ui";
 import { TrackingMap } from "./tracking-map";
 import { useSyncedDashboardDate } from "./use-synced-dashboard-date";
 
@@ -66,6 +66,7 @@ export function ManagerTrackingModule() {
   const feedRows = useMemo(() => {
     const sessionRows = (overview?.activeSessions ?? []).map((session) => ({
       id: `session-${session.assignmentId}`,
+      tone: "session" as const,
       type: "Canli Oturum",
       actor: session.user.displayName,
       subject: session.project.name,
@@ -74,6 +75,7 @@ export function ManagerTrackingModule() {
     }));
     const campaignRows = campaigns.map((campaign) => ({
       id: `campaign-${campaign.id}`,
+      tone: campaign.type === "DAILY_REMINDER" ? ("reminder" as const) : ("campaign" as const),
       type: campaign.type === "DAILY_REMINDER" ? "Gunluk Hatirlatici" : "Manuel Bildirim",
       actor: campaign.sender.displayName,
       subject: campaign.title,
@@ -84,6 +86,8 @@ export function ManagerTrackingModule() {
       right.createdAt.localeCompare(left.createdAt)
     );
   }, [campaigns, overview?.activeSessions]);
+  const selectedProjectLabel = projects.find((project) => project.id === selectedProjectId)?.name ?? "Tum projeler";
+  const selectedUserLabel = fieldUsers.find((user) => user.id === selectedUserId)?.displayName ?? "Tum saha personeli";
 
   useEffect(() => {
     if (!token) {
@@ -215,10 +219,13 @@ export function ManagerTrackingModule() {
   return (
     <>
       <div className="manager-module manager-stack-layout">
-        <section className="manager-command-surface manager-command-surface-left">
+        <section className="manager-command-surface manager-command-surface-grid">
           <div className="manager-command-copy">
             <span className="manager-command-kicker">Takip</span>
             <h2 className="manager-block-title">Harita ve saha akisi</h2>
+            <p className="manager-block-copy">
+              Harita, canli feed ve bildirim aksiyonlarini secili tarih baglamiyla birlikte izleyin.
+            </p>
           </div>
           <div className="manager-command-controls manager-command-controls-left">
             <div className="manager-inline-actions">
@@ -261,6 +268,29 @@ export function ManagerTrackingModule() {
 
         {message ? <div className="alert">{message}</div> : null}
 
+        <section className="manager-stat-ribbon manager-stat-ribbon-compact">
+          <article className="manager-stat-card">
+            <span>Proje marker</span>
+            <strong>{overview?.projectLocations.length ?? 0}</strong>
+            <small>{selectedProjectLabel}</small>
+          </article>
+          <article className="manager-stat-card">
+            <span>Aktif saha</span>
+            <strong>{fieldMarkers.length}</strong>
+            <small>{selectedUserLabel}</small>
+          </article>
+          <article className="manager-stat-card">
+            <span>Konum izi</span>
+            <strong>{history.length}</strong>
+            <small>Gecmis yakalama noktasi</small>
+          </article>
+          <article className="manager-stat-card">
+            <span>Kampanya</span>
+            <strong>{campaigns.length}</strong>
+            <small>Kayitli bildirim akisi</small>
+          </article>
+        </section>
+
         <section className="manager-surface-card map-panel">
           <div className="manager-section-head compact">
             <div>
@@ -268,6 +298,8 @@ export function ManagerTrackingModule() {
               <h3 className="manager-section-title">Proje + aktif saha markerlari</h3>
             </div>
             <div className="manager-inline-actions">
+              <span className="manager-inline-badge is-info">Proje marker</span>
+              <span className="manager-inline-badge is-positive">Saha marker</span>
               <span className="manager-mini-chip">{overview?.projectLocations.length ?? 0} proje</span>
               <span className="manager-mini-chip">{fieldMarkers.length} aktif saha</span>
             </div>
@@ -291,32 +323,29 @@ export function ManagerTrackingModule() {
               <span className="manager-section-kicker">Canli feed</span>
               <h3 className="manager-section-title">Oturum ve kampanya kayitlari</h3>
             </div>
+            <span className="manager-mini-chip">{feedRows.length} kayit</span>
           </div>
-          <div className="manager-table-wrap">
-            <table className="manager-table">
-              <thead>
-                <tr>
-                  <th>Tur</th>
-                  <th>Kullanici</th>
-                  <th>Konu</th>
-                  <th>Detay</th>
-                  <th>Zaman</th>
-                </tr>
-              </thead>
-              <tbody>
-                {feedRows.map((row) => (
-                  <tr key={row.id}>
-                    <td>{row.type}</td>
-                    <td>{row.actor}</td>
-                    <td>{row.subject}</td>
-                    <td>{row.detail}</td>
-                    <td>{formatDisplayDateTime(row.createdAt)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {!feedRows.length ? <div className="empty">Kayit bulunmuyor.</div> : null}
+          {!feedRows.length ? (
+            <div className="empty">Kayit bulunmuyor.</div>
+          ) : (
+            <div className="manager-feed-list">
+              {feedRows.map((row) => (
+                <article className={`manager-feed-row manager-feed-row-${row.tone}`} key={row.id}>
+                  <div className="manager-feed-topline">
+                    <div>
+                      <div className="manager-feed-labels">
+                        <span className={`manager-inline-badge manager-inline-badge-${row.tone}`}>{row.type}</span>
+                        <span className="manager-mini-chip">{row.actor}</span>
+                      </div>
+                      <strong>{row.subject}</strong>
+                    </div>
+                    <span className="manager-mini-chip">{formatDisplayDateTime(row.createdAt)}</span>
+                  </div>
+                  <p className="manager-feed-text">{row.detail}</p>
+                </article>
+              ))}
+            </div>
+          )}
         </section>
       </div>
 
@@ -324,52 +353,67 @@ export function ManagerTrackingModule() {
         onClose={() => setNotifyDrawerOpen(false)}
         open={notifyDrawerOpen}
         title="Bildirim Gonder"
+        description="Gunluk hatirlatici veya manuel bildirim akisini mevcut backend endpointleri ile tetikleyin."
       >
         <div className="stack">
           {!pushConfig?.enabled ? (
             <div className="alert">Web push yapilandirilmadi. Islem kampanya kaydi olarak tutulur.</div>
           ) : null}
-          <button className="button secondary" onClick={sendDailyReminder} type="button">
-            Bugunun hatirlaticisini gonder
-          </button>
-          <form className="stack" onSubmit={sendManualNotification}>
-            <input
-              className="input"
-              onChange={(event) =>
-                setManualDraft((current) => ({ ...current, title: event.target.value }))
-              }
-              placeholder="Baslik"
-              required
-              value={manualDraft.title}
-            />
-            <textarea
-              className="textarea"
-              onChange={(event) =>
-                setManualDraft((current) => ({ ...current, message: event.target.value }))
-              }
-              placeholder="Mesaj"
-              required
-              value={manualDraft.message}
-            />
-            <div className="program-assignment-grid">
-              {fieldUsers.map((user) => (
-                <label
-                  className={`assign-pill ${manualDraft.userIds.includes(user.id) ? "active" : ""}`}
-                  key={user.id}
-                >
-                  <input
-                    checked={manualDraft.userIds.includes(user.id)}
-                    onChange={() => toggleManualRecipient(user.id)}
-                    type="checkbox"
-                  />
-                  <span>{user.displayName}</span>
-                </label>
-              ))}
-            </div>
-            <button className="button" type="submit">
-              Bildirim Gonder
+
+          <ManagerDrawerSection
+            eyebrow="Hazir akis"
+            title="Gunluk hatirlatici"
+            description="Secili tarih icin tek dokunusla standart hatirlatici kampanyasini olusturun."
+          >
+            <button className="button secondary" onClick={sendDailyReminder} type="button">
+              Bugunun hatirlaticisini gonder
             </button>
-          </form>
+          </ManagerDrawerSection>
+
+          <ManagerDrawerSection
+            eyebrow="Manuel kampanya"
+            title="Bildirim olustur"
+            description="Baslik, mesaj ve hedef saha personellerini secin."
+          >
+            <form className="stack" onSubmit={sendManualNotification}>
+              <input
+                className="input"
+                onChange={(event) =>
+                  setManualDraft((current) => ({ ...current, title: event.target.value }))
+                }
+                placeholder="Baslik"
+                required
+                value={manualDraft.title}
+              />
+              <textarea
+                className="textarea"
+                onChange={(event) =>
+                  setManualDraft((current) => ({ ...current, message: event.target.value }))
+                }
+                placeholder="Mesaj"
+                required
+                value={manualDraft.message}
+              />
+              <div className="program-assignment-grid">
+                {fieldUsers.map((user) => (
+                  <label
+                    className={`assign-pill ${manualDraft.userIds.includes(user.id) ? "active" : ""}`}
+                    key={user.id}
+                  >
+                    <input
+                      checked={manualDraft.userIds.includes(user.id)}
+                      onChange={() => toggleManualRecipient(user.id)}
+                      type="checkbox"
+                    />
+                    <span>{user.displayName}</span>
+                  </label>
+                ))}
+              </div>
+              <button className="button" type="submit">
+                Bildirim Gonder
+              </button>
+            </form>
+          </ManagerDrawerSection>
         </div>
       </ManagerDrawer>
     </>

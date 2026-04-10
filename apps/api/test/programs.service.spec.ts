@@ -21,6 +21,20 @@ describe("ProgramsService", () => {
     };
   }
 
+  function createIdempotencyServiceMock() {
+    return {
+      execute: jest.fn(async ({ action }) => action())
+    };
+  }
+
+  function createLoggerMock() {
+    return {
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn()
+    };
+  }
+
   it("cleans staged timeline files when entry creation fails after staging", async () => {
     const stagedFiles = [
       {
@@ -63,12 +77,16 @@ describe("ProgramsService", () => {
       sendAssignmentNotice: jest.fn()
     };
     const storageService = createStorageServiceMock();
+    const idempotencyService = createIdempotencyServiceMock();
+    const logger = createLoggerMock();
 
     const service = new ProgramsService(
       prisma as never,
       projectsService as never,
       notificationsService as never,
-      storageService as never
+      storageService as never,
+      idempotencyService as never,
+      logger as never
     );
 
     await expect(
@@ -126,12 +144,16 @@ describe("ProgramsService", () => {
       sendAssignmentNotice: jest.fn()
     };
     const storageService = createStorageServiceMock();
+    const idempotencyService = createIdempotencyServiceMock();
+    const logger = createLoggerMock();
 
     const service = new ProgramsService(
       prisma as never,
       projectsService as never,
       notificationsService as never,
-      storageService as never
+      storageService as never,
+      idempotencyService as never,
+      logger as never
     );
 
     await service.addProjectToProgram(
@@ -179,12 +201,16 @@ describe("ProgramsService", () => {
       sendAssignmentNotice: jest.fn()
     };
     const storageService = createStorageServiceMock();
+    const idempotencyService = createIdempotencyServiceMock();
+    const logger = createLoggerMock();
 
     const service = new ProgramsService(
       prisma as never,
       projectsService as never,
       notificationsService as never,
-      storageService as never
+      storageService as never,
+      idempotencyService as never,
+      logger as never
     );
 
     await service.updateProgramNote(

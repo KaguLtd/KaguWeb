@@ -12,6 +12,8 @@ import {
 import type { FieldNotificationHistoryPage } from "@kagu/contracts";
 import * as webpush from "web-push";
 import { CurrentUserPayload } from "../common/decorators/current-user.decorator";
+import { IdempotencyService } from "../common/idempotency/idempotency.service";
+import { StructuredLoggerService } from "../common/observability/structured-logger.service";
 import { toDateOnly } from "../common/utils/date";
 import { PrismaService } from "../prisma/prisma.service";
 import { NotificationHistoryQueryDto } from "./dto/notification-history-query.dto";
@@ -32,7 +34,9 @@ type PushPayload = {
 export class NotificationsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly storageService: StorageService
+    private readonly storageService: StorageService,
+    private readonly idempotencyService: IdempotencyService,
+    private readonly logger: StructuredLoggerService
   ) {
     if (this.isPushConfigured()) {
       webpush.setVapidDetails(
@@ -216,137 +220,159 @@ export class NotificationsService {
     };
   }
 
-  async sendManual(actor: CurrentUserPayload, dto: SendManualNotificationDto) {
-    this.assertManager(actor);
+  async sendManual(
+    actor: CurrentUserPayload,
+    dto: SendManualNotificationDto,
+    idempotencyKey?: string
+  ) {
+    return this.idempotencyService.execute({
+      actorId: actor.sub,
+      scope: "notifications:manual:create",
+      key: idempotencyKey,
+      action: async () => {
+        this.assertManager(actor);
 
-    const users = await this.prisma.user.findMany({
-      where: {
-        id: { in: dto.userIds },
-        role: Role.FIELD,
-        isActive: true
+        const users = await this.prisma.user.findMany({
+          where: {
+            id: { in: dto.userIds },
+            role: Role.FIELD,
+            isActive: true
+          }
+        });
+
+        if (users.length !== new Set(dto.userIds).size) {
+          throw new BadRequestException("Bildirim hedefinde gecersiz kullanici var.");
+        }
+
+        const campaign = await this.prisma.notificationCampaign.create({
+          data: {
+            senderId: actor.sub,
+            type: NotificationCampaignType.MANUAL,
+            title: dto.title.trim(),
+            message: dto.message.trim()
+          }
+        });
+
+        await this.dispatchCampaign(campaign.id, dto.userIds, {
+          title: dto.title.trim(),
+          body: dto.message.trim(),
+          url: "/dashboard/tracking",
+          campaignId: campaign.id,
+          type: NotificationCampaignType.MANUAL
+        });
+
+        await this.storageService.appendSystemEvent({
+          actor,
+          eventType: "MANUAL_NOTIFICATION_SENT",
+          payload: {
+            campaignId: campaign.id,
+            targetUserIds: dto.userIds,
+            title: dto.title.trim()
+          }
+        });
+
+        return this.getCampaignById(campaign.id);
       }
     });
-
-    if (users.length !== new Set(dto.userIds).size) {
-      throw new BadRequestException("Bildirim hedefinde gecersiz kullanici var.");
-    }
-
-    const campaign = await this.prisma.notificationCampaign.create({
-      data: {
-        senderId: actor.sub,
-        type: NotificationCampaignType.MANUAL,
-        title: dto.title.trim(),
-        message: dto.message.trim()
-      }
-    });
-
-    await this.dispatchCampaign(campaign.id, dto.userIds, {
-      title: dto.title.trim(),
-      body: dto.message.trim(),
-      url: "/dashboard/tracking",
-      campaignId: campaign.id,
-      type: NotificationCampaignType.MANUAL
-    });
-
-    await this.storageService.appendSystemEvent({
-      actor,
-      eventType: "MANUAL_NOTIFICATION_SENT",
-      payload: {
-        campaignId: campaign.id,
-        targetUserIds: dto.userIds,
-        title: dto.title.trim()
-      }
-    });
-
-    return this.getCampaignById(campaign.id);
   }
 
-  async sendDailyReminder(actor: CurrentUserPayload, dto: SendDailyReminderDto) {
-    this.assertManager(actor);
-    const date = toDateOnly(dto.date ?? new Date().toISOString().slice(0, 10));
-    const program = await this.prisma.dailyProgram.findUnique({
-      where: { date },
-      include: {
-        programProjects: {
+  async sendDailyReminder(
+    actor: CurrentUserPayload,
+    dto: SendDailyReminderDto,
+    idempotencyKey?: string
+  ) {
+    return this.idempotencyService.execute({
+      actorId: actor.sub,
+      scope: `notifications:daily-reminder:${dto.date ?? "today"}`,
+      key: idempotencyKey,
+      action: async () => {
+        this.assertManager(actor);
+        const date = toDateOnly(dto.date ?? new Date().toISOString().slice(0, 10));
+        const program = await this.prisma.dailyProgram.findUnique({
+          where: { date },
           include: {
-            project: {
-              select: { id: true, name: true, storageRoot: true }
-            },
-            assignments: {
-              where: { isActive: true },
+            programProjects: {
               include: {
-                user: {
-                  select: { id: true, role: true, isActive: true }
+                project: {
+                  select: { id: true, name: true, storageRoot: true }
+                },
+                assignments: {
+                  where: { isActive: true },
+                  include: {
+                    user: {
+                      select: { id: true, role: true, isActive: true }
+                    }
+                  }
                 }
               }
             }
           }
+        });
+
+        if (!program) {
+          throw new NotFoundException("Secilen tarih icin gunluk program bulunamadi.");
         }
-      }
-    });
 
-    if (!program) {
-      throw new NotFoundException("Secilen tarih icin gunluk program bulunamadi.");
-    }
+        const uniqueUserIds = [
+          ...new Set(
+            program.programProjects.flatMap((programProject) =>
+              programProject.assignments
+                .filter((assignment) => assignment.user.role === Role.FIELD && assignment.user.isActive)
+                .map((assignment) => assignment.user.id)
+            )
+          )
+        ];
 
-    const uniqueUserIds = [
-      ...new Set(
-        program.programProjects.flatMap((programProject) =>
-          programProject.assignments
-            .filter((assignment) => assignment.user.role === Role.FIELD && assignment.user.isActive)
-            .map((assignment) => assignment.user.id)
-        )
-      )
-    ];
+        if (!uniqueUserIds.length) {
+          throw new BadRequestException("Bu tarih icin bildirilecek aktif saha atamasi bulunamadi.");
+        }
 
-    if (!uniqueUserIds.length) {
-      throw new BadRequestException("Bu tarih icin bildirilecek aktif saha atamasi bulunamadi.");
-    }
+        const projectNames = program.programProjects.map((item) => item.project.name);
+        const title = "Gunluk program hatirlatmasi";
+        const body = projectNames.length
+          ? `Bugun atanmis projeler: ${projectNames.join(", ")}`
+          : "Bugun icin size atanmis saha programi bulunuyor.";
 
-    const projectNames = program.programProjects.map((item) => item.project.name);
-    const title = "Gunluk program hatirlatmasi";
-    const body = projectNames.length
-      ? `Bugun atanmis projeler: ${projectNames.join(", ")}`
-      : "Bugun icin size atanmis saha programi bulunuyor.";
-
-    const campaign = await this.prisma.notificationCampaign.create({
-      data: {
-        senderId: actor.sub,
-        type: NotificationCampaignType.DAILY_REMINDER,
-        title,
-        message: body,
-        dailyProgramId: program.id,
-        targetDate: date
-      }
-    });
-
-    await this.dispatchCampaign(campaign.id, uniqueUserIds, {
-      title,
-      body,
-      url: "/dashboard",
-      campaignId: campaign.id,
-      type: NotificationCampaignType.DAILY_REMINDER
-    });
-
-    await Promise.all(
-      program.programProjects.map((programProject) =>
-        this.storageService.appendProjectEvent({
-          project: programProject.project,
-          actor,
-          eventType: "DAILY_REMINDER_SENT",
-          payload: {
-            campaignId: campaign.id,
-            targetDate: date.toISOString().slice(0, 10),
+        const campaign = await this.prisma.notificationCampaign.create({
+          data: {
+            senderId: actor.sub,
+            type: NotificationCampaignType.DAILY_REMINDER,
             title,
-            targetUserIds: programProject.assignments
-              .filter((assignment) => assignment.user.role === Role.FIELD && assignment.user.isActive)
-              .map((assignment) => assignment.user.id)
+            message: body,
+            dailyProgramId: program.id,
+            targetDate: date
           }
-        })
-      )
-    );
+        });
 
-    return this.getCampaignById(campaign.id);
+        await this.dispatchCampaign(campaign.id, uniqueUserIds, {
+          title,
+          body,
+          url: "/dashboard",
+          campaignId: campaign.id,
+          type: NotificationCampaignType.DAILY_REMINDER
+        });
+
+        await Promise.all(
+          program.programProjects.map((programProject) =>
+            this.storageService.appendProjectEvent({
+              project: programProject.project,
+              actor,
+              eventType: "DAILY_REMINDER_SENT",
+              payload: {
+                campaignId: campaign.id,
+                targetDate: date.toISOString().slice(0, 10),
+                title,
+                targetUserIds: programProject.assignments
+                  .filter((assignment) => assignment.user.role === Role.FIELD && assignment.user.isActive)
+                  .map((assignment) => assignment.user.id)
+              }
+            })
+          )
+        );
+
+        return this.getCampaignById(campaign.id);
+      }
+    });
   }
 
   async sendAssignmentNotice(
@@ -610,6 +636,15 @@ export class NotificationsService {
         });
       } catch (error) {
         const failureReason = error instanceof Error ? error.message : "Push gonderimi basarisiz.";
+        this.logger.warn("notification.delivery.failed", {
+          campaignId,
+          deliveryId: delivery.id,
+          targetUserId: delivery.targetUserId,
+          subscriptionId: subscription.id,
+          failureReason,
+          statusCode:
+            typeof error === "object" && error && "statusCode" in error ? error.statusCode : null
+        });
         await this.prisma.notificationDelivery.update({
           where: { id: delivery.id },
           data: {
@@ -624,6 +659,13 @@ export class NotificationsService {
           "statusCode" in error &&
           (error.statusCode === 404 || error.statusCode === 410)
         ) {
+          this.logger.info("notification.subscription.deactivated", {
+            campaignId,
+            deliveryId: delivery.id,
+            subscriptionId: subscription.id,
+            targetUserId: subscription.userId,
+            reason: `push-status-${error.statusCode}`
+          });
           await this.prisma.notificationSubscription.update({
             where: { id: subscription.id },
             data: { isActive: false }

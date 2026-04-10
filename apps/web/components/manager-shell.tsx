@@ -10,6 +10,8 @@ import {
   FolderIcon,
   LogoutIcon,
   MapIcon,
+  TimelineIcon,
+  FileIcon,
   UsersIcon
 } from "./ui-icons";
 
@@ -31,6 +33,18 @@ const navigation = [
     label: "Gunluk Program"
   },
   {
+    href: "/dashboard/templates",
+    label: "Template'ler"
+  },
+  {
+    href: "/dashboard/forms",
+    label: "Saha Formlari"
+  },
+  {
+    href: "/dashboard/form-responses",
+    label: "Form Cevaplari"
+  },
+  {
     href: "/dashboard/tracking",
     label: "Takip"
   }
@@ -41,12 +55,53 @@ const iconByHref = {
   "/dashboard/projects": FolderIcon,
   "/dashboard/users": UsersIcon,
   "/dashboard/program": CalendarIcon,
+  "/dashboard/templates": TimelineIcon,
+  "/dashboard/forms": FileIcon,
+  "/dashboard/form-responses": FileIcon,
   "/dashboard/tracking": MapIcon
+} as const;
+
+const routeCopy = {
+  dashboard: {
+    kicker: "Operasyon merkezi",
+    description: "Saha durumu, raporlar ve bildirim ozetleri tek calisma yuzeyinde."
+  },
+  projects: {
+    kicker: "Kayit yonetimi",
+    description: "Proje klasorleri, konum bilgisi ve ana dosya akislarini birlikte yonetin."
+  },
+  users: {
+    kicker: "Ekip dizini",
+    description: "Hesaplari, rollerini ve kullanilabilirlik durumlarini kontrollu sekilde yonetin."
+  },
+  program: {
+    kicker: "Gun plani",
+    description: "Secili tarih icin proje secimini, ekip atamalarini ve not akislarini yonetin."
+  },
+  templates: {
+    kicker: "Tekrarli planlar",
+    description: "Program template'lerini, preview ve materialize akislarini tek panelden yonetin."
+  },
+  forms: {
+    kicker: "Yapilandirilmis formlar",
+    description: "Saha form template'lerini, versiyonlarini ve kullanim hazirligini yonetin."
+  },
+  "form-responses": {
+    kicker: "Saha cevaplari",
+    description: "Kaydedilen form cevaplarini proje, actor ve template bazinda inceleyin."
+  },
+  tracking: {
+    kicker: "Canli takip",
+    description: "Harita, saha hareketi ve bildirim kampanyalarini ayni panelde izleyin."
+  }
 } as const;
 
 type ManagerShellProps = {
   title: string;
   children: React.ReactNode;
+  kicker?: string;
+  description?: string;
+  contextItems?: string[];
 };
 
 function isActivePath(pathname: string, href: (typeof navigation)[number]["href"]) {
@@ -66,13 +121,28 @@ function resolveTheme(pathname: string) {
   if (pathname.startsWith("/dashboard/program")) {
     return "program";
   }
+  if (pathname.startsWith("/dashboard/templates")) {
+    return "templates";
+  }
+  if (pathname.startsWith("/dashboard/forms")) {
+    return "forms";
+  }
+  if (pathname.startsWith("/dashboard/form-responses")) {
+    return "form-responses";
+  }
   if (pathname.startsWith("/dashboard/tracking")) {
     return "tracking";
   }
   return "dashboard";
 }
 
-export function ManagerShell({ title, children }: ManagerShellProps) {
+export function ManagerShell({
+  title,
+  children,
+  kicker,
+  description,
+  contextItems
+}: ManagerShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { logout, ready, token, user } = useAuth();
@@ -122,18 +192,31 @@ export function ManagerShell({ title, children }: ManagerShellProps) {
   if (!ready || !token || !user) {
     return (
       <div className="login-shell">
-        <div className="panel glass">Hazirlaniyor...</div>
+        <div className="panel glass shell-loading-card">
+          <div className="shell-loading-copy">
+            <strong>Calisma alani hazirlaniyor</strong>
+            <span>Oturum ve sayfa baglami yukleniyor.</span>
+          </div>
+        </div>
       </div>
     );
   }
 
   const theme = resolveTheme(pathname);
+  const descriptor = routeCopy[theme];
   const initials = user.displayName
     .split(" ")
     .filter(Boolean)
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
     .join("");
+
+  const defaultContextItems = [
+    `${navigation.find((item) => isActivePath(pathname, item.href))?.label ?? title}`,
+    "Manager oturumu"
+  ];
+
+  const resolvedContextItems = contextItems?.length ? contextItems : defaultContextItems;
 
   return (
     <div className="app-shell manager-shell-v3" data-manager-theme={theme}>
@@ -144,7 +227,7 @@ export function ManagerShell({ title, children }: ManagerShellProps) {
             <div className="manager-rail-mark">K</div>
             <div className="manager-rail-brandcopy">
               <strong>Kagu</strong>
-              <span>Manager Panel</span>
+              <span>Warm Ops Workspace</span>
             </div>
           </div>
 
@@ -166,6 +249,7 @@ export function ManagerShell({ title, children }: ManagerShellProps) {
                   </span>
                   <span className="manager-rail-copy">
                     <strong>{item.label}</strong>
+                    <small>{active ? "Secili yuzey" : "Calisma alani"}</small>
                   </span>
                 </Link>
               );
@@ -191,6 +275,7 @@ export function ManagerShell({ title, children }: ManagerShellProps) {
               </span>
               <span className="manager-rail-copy">
                 <strong>Oturumu Kapat</strong>
+                <small>Bu cihazdan cikis yap</small>
               </span>
             </button>
           </div>
@@ -200,7 +285,16 @@ export function ManagerShell({ title, children }: ManagerShellProps) {
           <header className="manager-topbar manager-topbar-compact">
             <div className="manager-topbar-copy">
               <div className="manager-page-heading">
+                <div className="manager-page-kicker">{kicker ?? descriptor.kicker}</div>
                 <h1 className="manager-page-title manager-page-title-compact">{title}</h1>
+                <p className="manager-page-description">{description ?? descriptor.description}</p>
+              </div>
+              <div className="manager-shell-context">
+                {resolvedContextItems.map((item) => (
+                  <span className="manager-shell-context-pill" key={item}>
+                    {item}
+                  </span>
+                ))}
               </div>
             </div>
 

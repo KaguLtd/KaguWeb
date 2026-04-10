@@ -22,6 +22,9 @@ import type { CurrentUserPayload } from "../common/decorators/current-user.decor
 import { Roles } from "../common/decorators/roles.decorator";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
+import { MAIN_FILE_UPLOAD_RATE_LIMITS } from "../common/security/rate-limit-policies";
+import { RateLimit } from "../common/security/rate-limit.decorator";
+import { RateLimitGuard } from "../common/security/rate-limit.guard";
 import { MAX_FILE_SIZE } from "../common/utils/file-policy";
 import { CreateCustomerDto } from "./dto/create-customer.dto";
 import { CreateProjectDto } from "./dto/create-project.dto";
@@ -90,6 +93,8 @@ export class ProjectsController {
 
   @Post("projects/:id/main-files")
   @Roles(Role.MANAGER)
+  @UseGuards(RateLimitGuard)
+  @RateLimit(...MAIN_FILE_UPLOAD_RATE_LIMITS)
   @UseInterceptors(
     FilesInterceptor("files", 12, {
       storage: memoryStorage(),

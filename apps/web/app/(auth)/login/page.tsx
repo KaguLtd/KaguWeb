@@ -41,11 +41,11 @@ export default function LoginPage() {
         <section className="poster">
           <div>
             <div className="login-mark">K</div>
-            <div className="eyebrow">Kagu saha takip</div>
-            <h1 className="title xl">Telefondan acin, atanmis projeye dogrudan girin.</h1>
+            <div className="eyebrow">Kagu saha operasyonu</div>
+            <h1 className="title xl">Ayni urun, daha temiz bir operasyon girisi.</h1>
             <p className="muted" style={{ color: "rgba(255, 248, 239, 0.84)", maxWidth: 420 }}>
-              Saha personeli yalniz kendi projelerini gorur, yol tarifini acar, sahaya ulastigini
-              ve gun sonunu tek dokunusta kaydeder.
+              Yonetici ve saha ekipleri ayni giris kapisini kullanir. Rol ayrimi, atama davranisi
+              ve mevcut auth akisi degismeden daha net bir ilk ekran deneyimi sunulur.
             </p>
           </div>
 
@@ -79,7 +79,7 @@ export default function LoginPage() {
             <div className="eyebrow">Giris</div>
             <h2 className="title lg">Hesabiniza baglanin.</h2>
             <p className="muted">
-              Bu cihaz size aitse beni hatirla acik kalabilir. Ortak cihazlarda kapatmaniz daha dogru olur.
+              Bu cihaz size aitse beni hatirla acik kalabilir. Ortak cihazlarda kapatmaniz daha guvenlidir.
             </p>
           </div>
 
@@ -126,7 +126,7 @@ export default function LoginPage() {
           </button>
 
           <div className="empty tiny">
-            Yonetici veya saha kullanicisi olarak ayni ekrandan giris yapabilirsiniz.
+            Yonetici ve saha kullanicilari ayni ekrandan giris yapar; sonraki ekran rolunuze gore acilir.
           </div>
         </form>
       </div>

@@ -16,9 +16,13 @@ import { Role } from "@prisma/client";
 import { memoryStorage } from "multer";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import type { CurrentUserPayload } from "../common/decorators/current-user.decorator";
+import { IdempotencyKey } from "../common/decorators/idempotency-key.decorator";
 import { Roles } from "../common/decorators/roles.decorator";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
+import { RateLimit } from "../common/security/rate-limit.decorator";
+import { RateLimitGuard } from "../common/security/rate-limit.guard";
+import { TIMELINE_ENTRY_UPLOAD_RATE_LIMITS } from "../common/security/rate-limit-policies";
 import { MAX_FILE_SIZE } from "../common/utils/file-policy";
 import { AddProgramProjectDto } from "./dto/add-program-project.dto";
 import { AssignFieldUsersDto } from "./dto/assign-field-users.dto";
@@ -94,17 +98,29 @@ export class ProgramsController {
 
   @Post("assignments/:id/work-start")
   @Roles(Role.FIELD)
-  workStart(@Param("id") id: string, @Body() dto: WorkSessionDto, @CurrentUser() user: CurrentUserPayload) {
-    return this.programsService.workStart(id, dto, user);
+  workStart(
+    @Param("id") id: string,
+    @Body() dto: WorkSessionDto,
+    @CurrentUser() user: CurrentUserPayload,
+    @IdempotencyKey() idempotencyKey?: string
+  ) {
+    return this.programsService.workStart(id, dto, user, idempotencyKey);
   }
 
   @Post("assignments/:id/work-end")
   @Roles(Role.FIELD)
-  workEnd(@Param("id") id: string, @Body() dto: WorkSessionDto, @CurrentUser() user: CurrentUserPayload) {
-    return this.programsService.workEnd(id, dto, user);
+  workEnd(
+    @Param("id") id: string,
+    @Body() dto: WorkSessionDto,
+    @CurrentUser() user: CurrentUserPayload,
+    @IdempotencyKey() idempotencyKey?: string
+  ) {
+    return this.programsService.workEnd(id, dto, user, idempotencyKey);
   }
 
   @Post("program-projects/:id/entries")
+  @UseGuards(RateLimitGuard)
+  @RateLimit(...TIMELINE_ENTRY_UPLOAD_RATE_LIMITS)
   @UseInterceptors(
     FilesInterceptor("files", 12, {
       storage: memoryStorage(),
@@ -115,14 +131,20 @@ export class ProgramsController {
     @Param("id") id: string,
     @Body() dto: CreateEntryDto,
     @UploadedFiles() files: Express.Multer.File[],
-    @CurrentUser() user: CurrentUserPayload
+    @CurrentUser() user: CurrentUserPayload,
+    @IdempotencyKey() idempotencyKey?: string
   ) {
-    return this.programsService.createEntry(id, dto, files, user);
+    return this.programsService.createEntry(id, dto, files, user, idempotencyKey);
   }
 
   @Post("assignments/:id/location-pings")
   @Roles(Role.FIELD)
-  createLocationPing(@Param("id") id: string, @Body() dto: LocationPingDto, @CurrentUser() user: CurrentUserPayload) {
-    return this.programsService.createLocationPing(id, dto, user);
+  createLocationPing(
+    @Param("id") id: string,
+    @Body() dto: LocationPingDto,
+    @CurrentUser() user: CurrentUserPayload,
+    @IdempotencyKey() idempotencyKey?: string
+  ) {
+    return this.programsService.createLocationPing(id, dto, user, idempotencyKey);
   }
 }
