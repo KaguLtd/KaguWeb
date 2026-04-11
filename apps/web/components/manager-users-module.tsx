@@ -4,6 +4,7 @@ import { ManagerUserSummary, UserRole } from "@kagu/contracts";
 import { FormEvent, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../lib/api";
 import { formatDisplayDate } from "../lib/date";
+import { AlertMessage } from "./alert-message";
 import { useAuth } from "./auth-provider";
 import { ManagerDrawer, ManagerDrawerSection } from "./manager-ui";
 import { DeviceIcon, KeyIcon, PowerIcon, UsersIcon } from "./ui-icons";
@@ -399,7 +400,7 @@ export function ManagerUsersModule() {
           </aside>
         </section>
 
-        {message ? <div className="alert">{message}</div> : null}
+        {message ? <AlertMessage message={message} /> : null}
 
         <section className="manager-stat-ribbon manager-stat-ribbon-compact manager-stat-ribbon-premium">
           <article className="manager-stat-card">
@@ -562,7 +563,7 @@ export function ManagerUsersModule() {
         description="Yeni saha veya yonetici hesabi olusturun. Mevcut backend akisi ve zorunlu alanlar korunur."
       >
         <form className="stack" onSubmit={handleCreateUser}>
-          {createMessage ? <div className="alert">{createMessage}</div> : null}
+          {createMessage ? <AlertMessage message={createMessage} /> : null}
 
           <ManagerDrawerSection
             eyebrow="Kimlik"
@@ -634,7 +635,7 @@ export function ManagerUsersModule() {
       >
         {selectedUser ? (
           <form className="stack" onSubmit={handleUpdateUser}>
-            {detailMessage ? <div className="alert">{detailMessage}</div> : null}
+            {detailMessage ? <AlertMessage message={detailMessage} /> : null}
 
             <ManagerDrawerSection
               eyebrow="Ozet"

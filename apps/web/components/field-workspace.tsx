@@ -30,6 +30,7 @@ import {
   formatDateValue,
   getTodayLocal
 } from "../lib/date";
+import { AlertMessage } from "./alert-message";
 import {
   registerFieldOutboxSyncListener,
   requestFieldOutboxSync
@@ -173,19 +174,19 @@ function buildMapsHref(assignment: FieldAssignedProjectSummary) {
 function entryTypeLabel(entryType: TimelineEntry["entryType"]) {
   switch (entryType) {
     case "WORK_START":
-      return "Sahaya ulasildi";
+      return "Sahaya ulaşıldı";
     case "WORK_END":
-      return "Proje gun sonu";
+      return "Proje gün sonu";
     case "FIELD_NOTE":
       return "Saha notu";
     case "MANAGER_NOTE":
-      return "Yonetici notu";
+      return "Yönetici notu";
     case "FILE_UPLOAD":
       return "Dosya eklendi";
     case "IMAGE_UPLOAD":
-      return "Gorsel eklendi";
+      return "Görsel eklendi";
     case "LOCATION_EVENT":
-      return "Konum kaydi";
+      return "Konum kaydı";
     default:
       return entryType;
   }
@@ -287,16 +288,16 @@ export function FieldWorkspace({
   const footerDateLabel = assignmentDateLabel;
   const syncMessage = isOfflineMode
     ? pendingSyncCount > 0
-      ? `Cihaz cevrimdisi. ${pendingSyncCount} bekleyen kayit var.`
-      : "Cihaz cevrimdisi. Son basarili veriler gosteriliyor."
+      ? `Cihaz çevrimdışı. ${pendingSyncCount} bekleyen kayıt var.`
+      : "Cihaz çevrimdışı. Son başarılı veriler gösteriliyor."
     : syncStatus === "syncing"
-      ? "Bekleyen saha kayitlari senkronlaniyor."
+      ? "Bekleyen saha kayıtları senkronlanıyor."
       : syncStatus === "pending"
         ? `${pendingSyncCount} saha kaydi baglanti bekliyor.`
         : syncStatus === "synced" && pendingSyncCount === 0
           ? "Veriler senkron."
           : syncStatus === "error"
-            ? "Bazi bekleyen kayitlar senkron sirasinda reddedildi."
+            ? "Bazı bekleyen kayıtlar senkron sırasında reddedildi."
             : null;
   selectedProjectIdRef.current = selectedProjectId;
 
@@ -548,22 +549,22 @@ export function FieldWorkspace({
       }
       setMessage(
         droppedCount > 0
-          ? `${syncedCount} bekleyen kayit senkronlandi, ${droppedCount} kayit gecersiz oldugu icin atlandi.`
-          : `${syncedCount} bekleyen kayit senkronlandi.`
+          ? `${syncedCount} bekleyen kayıt senkronlandı, ${droppedCount} kayıt geçersiz olduğu için atlandı.`
+          : `${syncedCount} bekleyen kayıt senkronlandı.`
       );
       setSyncStatus(retryScheduledCount > 0 ? "pending" : "synced");
       return;
     }
 
     if (droppedCount > 0) {
-      setMessage(`${droppedCount} bekleyen kayit sunucu tarafinda reddedildi ve kuyruktan kaldirildi.`);
+      setMessage(`${droppedCount} bekleyen kayıt sunucu tarafında reddedildi ve kuyruktan kaldırıldı.`);
       setSyncStatus("error");
       return;
     }
 
     if (retryScheduledCount > 0 || replayPaused) {
       setMessage(
-        "Bazi bekleyen kayitlar gecici olarak senkronlanamadi. Sistem yeniden denemek icin kuyrukta tutuyor."
+        "Bazı bekleyen kayıtlar geçici olarak senkronlanamadı. Sistem yeniden denemek için kuyrukta tutuyor."
       );
       setSyncStatus("pending");
     }
@@ -696,7 +697,7 @@ export function FieldWorkspace({
                   source: "watch"
                 }
               },
-              "Konum kaydi baglanti gelince gonderilecek."
+              "Konum kaydı bağlantı gelince gönderilecek."
             );
           } catch {
             // Keep field flow uninterrupted when location pinging fails.
@@ -826,7 +827,7 @@ export function FieldWorkspace({
 
     const position = await getCurrentPosition();
     if (!position && !isSecureClient) {
-      setMessage("Telefon uygulamasi guvenli baglantida acilmadigi icin konum alinamadi. HTTPS gerekir.");
+      setMessage("Telefon uygulaması güvenli bağlantıda açılmadığı için konum alınamadı. HTTPS gerekir.");
     }
     const payload = {
       latitude: position?.coords.latitude,
@@ -847,7 +848,7 @@ export function FieldWorkspace({
         token
       );
 
-      setMessage("Sahaya ulasildi kaydi alindi.");
+      setMessage("Sahaya ulaşıldı kaydı alındı.");
       await refreshAssignments();
       await refreshTimeline(targetAssignment.projectId);
       await flushPendingFieldActions();
@@ -884,7 +885,7 @@ export function FieldWorkspace({
           createdAt: startedAt,
           payload
         },
-        "Sahaya ulasildi kaydi kuyruga alindi. Baglanti gelince gonderilecek."
+        "Sahaya ulaşıldı kaydı kuyruğa alındı. Bağlantı gelince gönderilecek."
       );
     }
   }
@@ -897,7 +898,7 @@ export function FieldWorkspace({
 
     const position = await getCurrentPosition();
     if (!position && !isSecureClient) {
-      setMessage("Telefon uygulamasi guvenli baglantida acilmadigi icin konum alinamadi. HTTPS gerekir.");
+      setMessage("Telefon uygulaması güvenli bağlantıda açılmadığı için konum alınamadı. HTTPS gerekir.");
     }
     const payload = {
       latitude: position?.coords.latitude,
@@ -918,7 +919,7 @@ export function FieldWorkspace({
         token
       );
 
-      setMessage("Proje gun sonu kaydedildi.");
+      setMessage("Proje gün sonu kaydedildi.");
       await refreshAssignments();
       await refreshTimeline(targetAssignment.projectId);
       await flushPendingFieldActions();
@@ -950,7 +951,7 @@ export function FieldWorkspace({
           createdAt: new Date().toISOString(),
           payload
         },
-        "Gun sonu kaydi kuyruga alindi. Baglanti gelince gonderilecek."
+        "Gün sonu kaydı kuyruğa alındı. Bağlantı gelince gönderilecek."
       );
     }
   }
@@ -983,10 +984,10 @@ export function FieldWorkspace({
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      setMessage("Sifreniz guncellendi.");
+      setMessage("Şifreniz güncellendi.");
       setPushMessage(null);
     } catch (error) {
-      setPasswordError(error instanceof Error ? error.message : "Sifre guncellenemedi.");
+      setPasswordError(error instanceof Error ? error.message : "Şifre güncellenemedi.");
     } finally {
       setPasswordSubmitting(false);
     }
@@ -1020,7 +1021,7 @@ export function FieldWorkspace({
       );
 
       formElement.reset();
-      setMessage("Gunluk not veya dosya eklendi.");
+      setMessage("Günlük not veya dosya eklendi.");
       await refreshTimeline(selectedAssignment.projectId);
       await flushPendingFieldActions();
     } catch (error) {
@@ -1029,12 +1030,12 @@ export function FieldWorkspace({
       }
 
       if (selectedFiles.length > 0) {
-        setMessage("Dosyali kayitlar offline kuyruga alinmiyor. Baglanti geldiginde tekrar deneyin.");
+        setMessage("Dosyalı kayıtlar çevrimdışı kuyruğa alınmıyor. Bağlantı geldiğinde tekrar deneyin.");
         return;
       }
 
       if (!note) {
-        setMessage("Offline kayit icin en az bir not girmeniz gerekiyor.");
+        setMessage("Çevrimdışı kayıt için en az bir not girmeniz gerekiyor.");
         return;
       }
 
@@ -1055,7 +1056,7 @@ export function FieldWorkspace({
             note
           }
         },
-        "Gunluk not kuyruga alindi. Baglanti gelince gonderilecek."
+        "Günlük not kuyruğa alındı. Bağlantı gelince gönderilecek."
       );
     }
   }
@@ -1200,22 +1201,22 @@ export function FieldWorkspace({
   function renderHomeHeader() {
     const copyByTab = {
       projects: {
-        kicker: "Bugunun plani",
+        kicker: "Bugünün planı",
         title: "Atanmis saha isleri",
         description: "Birincil aksiyonlari hizli ulas, ikincil detaylari kart icinden ac.",
         count: `${assignments.length} proje`
       },
       notifications: {
         kicker: "Bildirim merkezi",
-        title: "Size gonderilenler",
+        title: "Size gönderilenler",
         description: "Son kampanyalari ve teslim edilen mesajlari ayni akista inceleyin.",
-        count: `${notificationHistoryPage.totalCount} kayit`
+        count: `${notificationHistoryPage.totalCount} kayıt`
       },
       device: {
         kicker: "Cihaz ve hesap",
-        title: "Guvenlik islemleri",
-        description: "Push, sifre ve oturum alanlarini tek yerde yonetin.",
-        count: pushEnabled ? "Bildirim acik" : "Bildirim kapali"
+        title: "Güvenlik işlemleri",
+        description: "Push, şifre ve oturum alanlarını tek yerde yönetin.",
+        count: pushEnabled ? "Bildirim açık" : "Bildirim kapalı"
       }
     } as const;
 
@@ -1236,7 +1237,7 @@ export function FieldWorkspace({
         <div className="field-v3-topbar-side">
           <div className="field-v3-utility field-v3-utility-compact">
             <strong>{user.displayName}</strong>
-            <span>{homeTab === "projects" ? "Saha calisma yuzeyi" : "Mobil yonetim"}</span>
+            <span>{homeTab === "projects" ? "Saha çalışma yüzeyi" : "Mobil yönetim"}</span>
           </div>
         </div>
       </section>
@@ -1272,7 +1273,7 @@ export function FieldWorkspace({
             <span className="field-v3-kicker">Proje detayi</span>
             <h2>{selectedAssignment.projectName}</h2>
             <div className="field-v3-topbar-meta">
-              <span>{selectedAssignment.customerName ?? "Cari tanimli degil"}</span>
+              <span>{selectedAssignment.customerName ?? "Cari tanımlı değil"}</span>
               <span>{assignmentDateLabel}</span>
               <span>{selectedAssignment.locationLabel ?? "Konum bekleniyor"}</span>
             </div>
@@ -1282,7 +1283,7 @@ export function FieldWorkspace({
           </div>
         </section>
 
-        {message ? <div className="alert field-v3-banner">{message}</div> : null}
+        {message ? <AlertMessage className="field-v3-banner" message={message} /> : null}
         {syncMessage ? <div className="field-v4-inlinehint">{syncMessage}</div> : null}
         <div className="field-v4-rail">
           <div className="field-v4-rail-card">
@@ -1310,7 +1311,7 @@ export function FieldWorkspace({
           <div className="field-v4-rail-card">
             <span className="field-v4-rail-label">Senkron</span>
             <strong>
-              {isOfflineMode ? "Cevrimdisi" : syncStatus === "syncing" ? "Calisiyor" : "Baglandi"}
+              {isOfflineMode ? "Çevrimdışı" : syncStatus === "syncing" ? "Çalışıyor" : "Bağlandı"}
             </strong>
           </div>
         </div>
@@ -1332,7 +1333,7 @@ export function FieldWorkspace({
                 type="button"
               >
                 <LocationArrowIcon />
-                <span>Haritayi ac</span>
+                <span>Haritayı aç</span>
               </button>
               <button
                 className="button success"
@@ -1345,7 +1346,7 @@ export function FieldWorkspace({
                 )}
               >
                 <CheckCircleIcon />
-                <span>Sahaya ulastim</span>
+                <span>Sahaya ulaştım</span>
               </button>
               <button
                 className="button danger"
@@ -1354,7 +1355,7 @@ export function FieldWorkspace({
                 disabled={!selectedAssignment.activeSession}
               >
                 <PowerIcon />
-                <span>Gun sonu</span>
+                <span>Gün sonu</span>
               </button>
             </div>
           </div>
@@ -1386,7 +1387,7 @@ export function FieldWorkspace({
             </div>
 
             <div className="field-v4-infobox field-v4-infobox-compact">
-              <strong>{selectedAssignment.description ?? "Bu proje icin ana not girilmemis."}</strong>
+              <strong>{selectedAssignment.description ?? "Bu proje için ana not girilmemiş."}</strong>
             </div>
           </div>
 
@@ -1394,16 +1395,16 @@ export function FieldWorkspace({
             <div className="field-v3-panelhead">
               <div>
                 <span className="field-v3-kicker">Projeye ait akis notlari</span>
-                <h3>Not ekle ve kayitlari gor</h3>
+                <h3>Not ekle ve kayıtları gör</h3>
               </div>
-              <div className="chip field-v3-chip-soft">{noteEntries.length} kayit</div>
+              <div className="chip field-v3-chip-soft">{noteEntries.length} kayıt</div>
             </div>
 
             <form className="field-v4-notecomposer field-v4-notecomposer-compact" onSubmit={addFieldEntry}>
               <textarea
                 className="textarea"
                 name="note"
-                placeholder="Bugun sahada gordugunuz notu kisaca yazin"
+                placeholder="Bugün sahada gördüğünüz notu kısaca yazın"
               />
               <div className="field-v4-notecomposer-row">
                 <input className="input" name="files" type="file" multiple />
@@ -1415,7 +1416,7 @@ export function FieldWorkspace({
 
             <div className="field-v4-notelist field-v4-compactlist">
               {noteEntries.length === 0 ? (
-                <div className="empty">Bu proje icin gosterilecek not veya dosya kaydi bulunmuyor.</div>
+                <div className="empty">Bu proje için gösterilecek not veya dosya kaydı bulunmuyor.</div>
               ) : (
                 noteEntries.map((entry) => (
                   <article className="field-v4-note" key={entry.id}>
@@ -1449,7 +1450,7 @@ export function FieldWorkspace({
       <>
         {renderHomeHeader()}
 
-        {message ? <div className="alert field-v3-banner">{message}</div> : null}
+        {message ? <AlertMessage className="field-v3-banner" message={message} /> : null}
         {syncMessage ? <div className="field-v4-inlinehint">{syncMessage}</div> : null}
 
         {homeTab === "projects" ? (
@@ -1458,7 +1459,7 @@ export function FieldWorkspace({
               <div className="field-v3-panelhead">
                 <div>
                   <span className="field-v3-kicker">Projeler</span>
-                  <h3>Bugun atanmis isler</h3>
+                  <h3>Bugün atanmış işler</h3>
                 </div>
                 <div className="chip field-v3-chip-soft">
                   {assignments.length} proje / {activeSessionCount} aktif
@@ -1467,7 +1468,7 @@ export function FieldWorkspace({
               </div>
 
               {assignments.length === 0 ? (
-                <div className="empty">Bugun size atanmis proje bulunmuyor.</div>
+                <div className="empty">Bugün size atanmış proje bulunmuyor.</div>
               ) : (
                 <div className="field-v3-projectlist">
                   {assignments.map((assignment) => (
@@ -1479,10 +1480,10 @@ export function FieldWorkspace({
                     >
                       <div className="field-v3-projecthead">
                         <div className="field-v3-projecttitle">
-                          <span className="field-v4-projectbadge">Bugun</span>
+                          <span className="field-v4-projectbadge">Bugün</span>
                           <strong className="field-v4-projectname">{assignment.projectName}</strong>
                           <span className="field-v4-projectsub">
-                            {assignment.customerName ?? "Cari tanimli degil"}
+                            {assignment.customerName ?? "Cari tanımlı değil"}
                           </span>
                         </div>
                       </div>
@@ -1516,7 +1517,7 @@ export function FieldWorkspace({
                           )}
                         >
                           <CheckCircleIcon />
-                          <span>Sahaya ulastim</span>
+                          <span>Sahaya ulaştım</span>
                         </button>
                         <button
                           className="button danger"
@@ -1525,7 +1526,7 @@ export function FieldWorkspace({
                           disabled={!assignment.activeSession}
                         >
                           <PowerIcon />
-                          <span>Gun sonu</span>
+                          <span>Gün sonu</span>
                         </button>
                       </div>
                       <div className="field-v3-rowactions field-v4-projectactions field-v4-projectactions-secondary">
@@ -1535,7 +1536,7 @@ export function FieldWorkspace({
                           type="button"
                         >
                           <LocationArrowIcon />
-                          <span>Haritayi ac</span>
+                          <span>Haritayı aç</span>
                         </button>
                         <button
                           className="button secondary"
@@ -1559,17 +1560,17 @@ export function FieldWorkspace({
               <div className="field-v3-panelhead">
                 <div>
                   <span className="field-v3-kicker">Bildirimler</span>
-                  <h3>Size gonderilenler</h3>
+                  <h3>Size gönderilenler</h3>
                 </div>
                 <div className="chip field-v3-chip-soft">
-                  {notificationHistoryPage.totalCount} kayit / Sayfa {notificationHistoryPage.page}
+                  {notificationHistoryPage.totalCount} kayıt / Sayfa {notificationHistoryPage.page}
                 </div>
                 <div className="chip field-v3-chip-soft">{homeProgramDateLabel}</div>
               </div>
 
               <div className="field-v4-feed">
                 {notificationHistory.length === 0 ? (
-                  <div className="empty">Size gonderilmis bildirim kaydi bulunmuyor.</div>
+                  <div className="empty">Size gönderilmiş bildirim kaydı bulunmuyor.</div>
                 ) : (
                   notificationHistory.map((item) => (
                     <article className="field-v3-feedrow field-v4-feedrow" key={item.id}>
@@ -1613,10 +1614,10 @@ export function FieldWorkspace({
               <div className="field-v3-panelhead">
                 <div>
                   <span className="field-v3-kicker">Bildirimler</span>
-                  <h3>Cihaz islemleri</h3>
+                  <h3>Cihaz işlemleri</h3>
                 </div>
                 <span className={`chip field-v3-status ${pushEnabled ? "is-active" : "is-idle"}`}>
-                  {pushEnabled ? "Acik" : "Kapali"}
+                  {pushEnabled ? "Açık" : "Kapalı"}
                 </span>
               </div>
 
@@ -1628,7 +1629,7 @@ export function FieldWorkspace({
                   onClick={() => void enablePushNotifications()}
                 >
                   <BellIcon />
-                  <span>{pushEnabled ? "Bildirimler acik" : "Bildirimleri ac"}</span>
+                  <span>{pushEnabled ? "Bildirimler açık" : "Bildirimleri aç"}</span>
                 </button>
                 <span className="chip field-v3-chip-soft">{homeProgramDateLabel}</span>
               </div>
@@ -1640,7 +1641,7 @@ export function FieldWorkspace({
               <div className="field-v3-panelhead">
                 <div>
                   <span className="field-v3-kicker">Hesap</span>
-                  <h3>Guvenlik islemleri</h3>
+                  <h3>Güvenlik işlemleri</h3>
                 </div>
               </div>
 
@@ -1652,7 +1653,7 @@ export function FieldWorkspace({
               <div className="field-v3-rowactions">
                 <button className="button ghost" type="button" onClick={() => setPasswordSheetOpen(true)}>
                   <KeyIcon />
-                  <span>Sifre degistir</span>
+                  <span>Şifre değiştir</span>
                 </button>
               </div>
 
@@ -1715,7 +1716,7 @@ export function FieldWorkspace({
           </div>
           <div className="field-v4-topbar-meta">
             <span>{assignmentDateLabel}</span>
-            <span>{isOfflineMode ? "Cevrimdisi" : "Online"}</span>
+            <span>{isOfflineMode ? "Çevrimdışı" : "Çevrimiçi"}</span>
           </div>
         </div>
         {selectedAssignment ? renderDetailView() : renderHomeView()}
@@ -1730,7 +1731,7 @@ export function FieldWorkspace({
           <div className="field-v3-preview-panel glass" ref={previewPanelRef} tabIndex={-1}>
             <div className="field-v3-preview-header">
               <div>
-                <div className="field-v3-kicker">Dosya onizleme</div>
+                <div className="field-v3-kicker">Dosya önizleme</div>
                 <h2>{previewName}</h2>
               </div>
               <button className="button ghost" ref={previewCloseRef} type="button" onClick={closePreview}>
@@ -1743,7 +1744,7 @@ export function FieldWorkspace({
               <iframe className="field-v3-preview-frame" src={previewUrl} title={previewName} />
             ) : (
               <img
-                alt={previewName ?? "preview"}
+                alt={previewName ?? "önizleme"}
                 className="field-v3-preview-frame"
                 src={previewUrl}
                 style={{ objectFit: "contain" }}
@@ -1764,8 +1765,8 @@ export function FieldWorkspace({
           <div className="field-v4-sheet-panel glass" ref={passwordPanelRef} tabIndex={-1}>
             <div className="field-v3-panelhead">
               <div>
-                <span className="field-v3-kicker">Sifre degistir</span>
-                <h3>Yeni giris sifrenizi belirleyin</h3>
+                <span className="field-v3-kicker">Şifre değiştir</span>
+                <h3>Yeni giriş şifrenizi belirleyin</h3>
               </div>
               <button
                 className="button ghost"
@@ -1782,7 +1783,7 @@ export function FieldWorkspace({
               <input
                 autoComplete="current-password"
                 className="input"
-                placeholder="Mevcut sifre"
+                placeholder="Mevcut şifre"
                 type="password"
                 value={currentPassword}
                 onChange={(event) => setCurrentPassword(event.target.value)}
@@ -1790,7 +1791,7 @@ export function FieldWorkspace({
               <input
                 autoComplete="new-password"
                 className="input"
-                placeholder="Yeni sifre"
+                placeholder="Yeni şifre"
                 type="password"
                 value={newPassword}
                 onChange={(event) => setNewPassword(event.target.value)}
@@ -1798,7 +1799,7 @@ export function FieldWorkspace({
               <input
                 autoComplete="new-password"
                 className="input"
-                placeholder="Yeni sifre tekrar"
+                placeholder="Yeni şifre tekrar"
                 type="password"
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}
@@ -1808,7 +1809,7 @@ export function FieldWorkspace({
 
               <div className="field-v3-rowactions">
                 <button className="button" disabled={passwordSubmitting} type="submit">
-                  {passwordSubmitting ? "Kaydediliyor..." : "Sifreyi guncelle"}
+                  {passwordSubmitting ? "Kaydediliyor..." : "Şifreyi güncelle"}
                 </button>
               </div>
             </form>

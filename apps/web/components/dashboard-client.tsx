@@ -24,7 +24,7 @@ export function DashboardClient() {
       <div className="login-shell">
         <div className="panel glass shell-loading-card">
           <div className="shell-loading-copy">
-            <strong>Calisma alani hazirlaniyor</strong>
+            <strong>Çalışma alanı hazırlanıyor</strong>
             <span>Oturum durumu ve rol bilgisi denetleniyor.</span>
           </div>
         </div>
@@ -34,7 +34,7 @@ export function DashboardClient() {
 
   if (user.role === "MANAGER") {
     return (
-      <ManagerShell title="Operasyon Ozeti">
+      <ManagerShell title="Operasyon Özeti">
         <ManagerOverviewModule />
       </ManagerShell>
     );

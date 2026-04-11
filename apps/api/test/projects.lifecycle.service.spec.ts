@@ -19,6 +19,7 @@ describe("ProjectsService lifecycle", () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+    jest.useRealTimers();
   });
 
   function createPrismaMock() {
@@ -103,6 +104,8 @@ describe("ProjectsService lifecycle", () => {
   }
 
   it("creates a project, prepares storage, and records the creation event", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-04-09T09:00:00.000Z"));
+
     const prisma = createPrismaMock();
     const storageService = createStorageServiceMock();
     const storageDriver = createStorageDriverMock();
@@ -120,10 +123,15 @@ describe("ProjectsService lifecycle", () => {
       note: "Oncelikli musteri",
       isArchived: false
     });
+    prisma.project.findMany.mockResolvedValue([
+      { code: "Merkez_Holding_09_04_2026_00 0001" },
+      { code: "Baska_Cari_09_04_2026_00 0007" },
+      { code: "Merkez_Holding_10_04_2026_00 0001" }
+    ]);
     prisma.project.create.mockResolvedValue(
       buildProjectRecord({
         name: "Yeni Proje",
-        code: "PRJ-100",
+        code: "Merkez_Holding_09_04_2026_00 0002",
         description: "Ilk kurulum",
         locationLabel: "Istanbul"
       })
@@ -133,7 +141,6 @@ describe("ProjectsService lifecycle", () => {
       {
         customerId: "customer-1",
         name: "  Yeni Proje  ",
-        code: " PRJ-100 ",
         description: " Ilk kurulum ",
         locationLabel: " Istanbul ",
         latitude: 41.01,
@@ -165,7 +172,7 @@ describe("ProjectsService lifecycle", () => {
       data: expect.objectContaining({
         customerId: "customer-1",
         name: "Yeni Proje",
-        code: "PRJ-100",
+        code: "Merkez_Holding_09_04_2026_00 0002",
         description: "Ilk kurulum",
         locationLabel: "Istanbul",
         latitude: 41.01,
@@ -199,7 +206,7 @@ describe("ProjectsService lifecycle", () => {
       expect.objectContaining({
         id: "project-1",
         name: "Yeni Proje",
-        code: "PRJ-100",
+        code: "Merkez_Holding_09_04_2026_00 0002",
         isArchived: false,
         customer: expect.objectContaining({
           id: "customer-1",
@@ -243,13 +250,13 @@ describe("ProjectsService lifecycle", () => {
       {
         customerId: null,
         name: "  Arsiv Proje ",
-        code: null,
+        code: "DENENECEK-AMA-YOK-SAYILMALI",
         description: null,
         locationLabel: " Izmir ",
         latitude: 38.42,
         longitude: 27.14,
         isArchived: true
-      },
+      } as any,
       managerActor as never
     );
 
@@ -258,7 +265,6 @@ describe("ProjectsService lifecycle", () => {
       data: {
         customerId: null,
         name: "Arsiv Proje",
-        code: null,
         description: null,
         locationLabel: "Izmir",
         latitude: 38.42,

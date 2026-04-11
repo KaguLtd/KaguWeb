@@ -14,6 +14,7 @@ import {
   normalizeDateForMonth,
   shiftDateString
 } from "../lib/date";
+import { AlertMessage } from "./alert-message";
 import { useAuth } from "./auth-provider";
 import { ManagerDrawer, ManagerDrawerSection } from "./manager-ui";
 import { CalendarIcon, FileIcon, TimelineIcon, UsersIcon } from "./ui-icons";
@@ -563,7 +564,7 @@ export function ManagerProgramModule() {
           </aside>
         </section>
 
-        {moduleMessage ? <div className="alert">{moduleMessage}</div> : null}
+        {moduleMessage ? <AlertMessage message={moduleMessage} /> : null}
 
         <section className="manager-stat-ribbon manager-stat-ribbon-compact manager-stat-ribbon-premium">
           <article className="manager-stat-card">
@@ -659,7 +660,7 @@ export function ManagerProgramModule() {
         }
       >
         <div className="stack">
-          {drawerMessage ? <div className="alert">{drawerMessage}</div> : null}
+          {drawerMessage ? <AlertMessage message={drawerMessage} /> : null}
 
           <ManagerDrawerSection
             eyebrow="Adim 1"

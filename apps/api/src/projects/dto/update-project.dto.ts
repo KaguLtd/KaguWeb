@@ -18,10 +18,6 @@ export class UpdateProjectDto {
 
   @IsOptional()
   @IsString()
-  code?: string | null;
-
-  @IsOptional()
-  @IsString()
   description?: string | null;
 
   @IsOptional()

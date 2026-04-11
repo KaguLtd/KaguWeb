@@ -16,10 +16,6 @@ export class CreateProjectDto {
 
   @IsOptional()
   @IsString()
-  code?: string;
-
-  @IsOptional()
-  @IsString()
   description?: string;
 
   @IsOptional()

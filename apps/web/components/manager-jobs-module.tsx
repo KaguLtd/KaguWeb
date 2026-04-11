@@ -11,6 +11,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch, fetchAuthorizedBlob, isAbortError } from "../lib/api";
 import { formatDisplayDateTime } from "../lib/date";
+import { AlertMessage } from "./alert-message";
 import { useAuth } from "./auth-provider";
 import { ManagerDrawer, ManagerDrawerSection } from "./manager-ui";
 import { CheckCircleIcon, FileIcon, RefreshIcon, TimelineIcon } from "./ui-icons";
@@ -286,7 +287,7 @@ export function ManagerJobsModule() {
     void fetchExecutions(controller.signal)
       .catch((error) => {
         if (!isAbortError(error)) {
-          setMessage(error instanceof Error ? error.message : "Is gecmisi yuklenemedi.");
+          setMessage(error instanceof Error ? error.message : "İş geçmişi yüklenemedi.");
         }
       })
       .finally(() => {
@@ -496,7 +497,7 @@ export function ManagerJobsModule() {
     {
       label: "Calisan is",
       value: `${stats.running}`,
-      detail: "Henuz tamamlanmamis execution kayitlari",
+      detail: "Henüz tamamlanmamış işlem kayıtları",
       icon: RefreshIcon
     },
     {
@@ -522,7 +523,7 @@ export function ManagerJobsModule() {
               <span className="manager-command-kicker">Job execution</span>
               <h2 className="manager-block-title">Arka plan operasyonlarini saglik, artifact ve restore baglamiyla izleyin</h2>
               <p className="manager-block-copy manager-block-copy-visible">
-                Execution kayitlari, yedek akislari ve restore check sonuclari tek operasyon panelinde toplandi.
+                İşlem kayıtları, yedek akışları ve geri yükleme kontrol sonuçları tek operasyon panelinde toplandı.
               </p>
             </div>
             <div className="manager-overview-highlights">
@@ -618,7 +619,7 @@ export function ManagerJobsModule() {
                 <div>
                   <strong>Restore hazirligi</strong>
                   <b>{previewRestoreSummary?.integrityVerified && previewRestoreSummary?.inventoryVerified ? "Hazir" : "Beklemede"}</b>
-                  <p>{previewExecution?.jobName ?? "Execution secildiginde detay gosterilir"}</p>
+                  <p>{previewExecution?.jobName ?? "İşlem seçildiğinde detay gösterilir"}</p>
                 </div>
               </article>
             </div>
@@ -654,45 +655,7 @@ export function ManagerJobsModule() {
           </aside>
         </section>
 
-        {message ? <div className="alert">{message}</div> : null}
-
-        <section className="manager-stat-ribbon manager-stat-ribbon-compact manager-stat-ribbon-premium">
-          <article className="manager-stat-card">
-            <span>Kayit</span>
-            <strong>{loading ? "..." : executions.length}</strong>
-            <small>{autoRefresh ? "15 sn'de bir yenilenir" : "Manuel yenileme"}</small>
-          </article>
-          <article className="manager-stat-card">
-            <span>Calisiyor</span>
-            <strong>{stats.running}</strong>
-            <small>Bitmeyen isler</small>
-          </article>
-          <article className="manager-stat-card">
-            <span>Basarili</span>
-            <strong>{stats.succeeded}</strong>
-            <small>Log kaydi kapananlar</small>
-          </article>
-          <article className="manager-stat-card">
-            <span>Hatali</span>
-            <strong>{stats.failed}</strong>
-            <small>Takip gerektirenler</small>
-          </article>
-          <article className="manager-stat-card">
-            <span>Export</span>
-            <strong>{stats.backupExports}</strong>
-            <small>Yedek manifest kosulari</small>
-          </article>
-          <article className="manager-stat-card">
-            <span>Restore Check</span>
-            <strong>{stats.restorePrepares}</strong>
-            <small>Restore hazirlik dogrulamalari</small>
-          </article>
-          <article className="manager-stat-card">
-            <span>Son yenileme</span>
-            <strong>{lastUpdatedAt ? formatDisplayDateTime(lastUpdatedAt) : "-"}</strong>
-            <small>Liste senkron zamani</small>
-          </article>
-        </section>
+        {message ? <AlertMessage message={message} /> : null}
 
         <section className="manager-panel-split">
           <section className="manager-surface-card">
@@ -701,11 +664,11 @@ export function ManagerJobsModule() {
               <span className="manager-section-kicker">Execution listesi</span>
               <h3 className="manager-section-title">Son job kosulari</h3>
             </div>
-            <span className="manager-mini-chip">{executions.length} kayit</span>
+            <span className="manager-mini-chip">{executions.length} kayıt</span>
           </div>
 
             {loading ? (
-              <div className="empty">Job execution listesi yukleniyor.</div>
+              <div className="empty">İşlem listesi yükleniyor.</div>
             ) : !executions.length ? (
               <div className="empty">Filtreye uygun job execution kaydi bulunmuyor.</div>
             ) : (
@@ -893,7 +856,7 @@ export function ManagerJobsModule() {
             </div>
 
             {!previewExecution ? (
-              <div className="empty">Liste secimi olmadigi icin execution ozeti gosterilemiyor.</div>
+              <div className="empty">Liste seçimi olmadığı için işlem özeti gösterilemiyor.</div>
             ) : (
               <div className="manager-focus-stack">
                 <div className="manager-focus-lead">

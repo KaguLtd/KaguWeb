@@ -4,10 +4,10 @@ import { ManagerUsersModule } from "../../../../components/manager-users-module"
 export default function ManagerUsersPage() {
   return (
     <ManagerShell
-      title="Kullanicilar"
+      title="Kullanıcılar"
       kicker="Ekip dizini"
-      description="Roller, cihaz baglantilari ve hesap durumu icin taranabilir roster yuzeyi."
-      contextItems={["Ekip rosteri", "Rol ve oturum sinyali"]}
+      description="Roller, cihaz bağlantıları ve hesap durumunu yönetin."
+      contextItems={["Ekip listesi", "Rol ve oturum durumu"]}
     >
       <ManagerUsersModule />
     </ManagerShell>

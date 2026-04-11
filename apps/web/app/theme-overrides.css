@@ -40,11 +40,11 @@
 }
 
 .manager-workbench {
-  width: min(1600px, 100%);
+  width: min(1680px, calc(100vw - 24px));
   margin: 0 auto;
   display: grid;
-  grid-template-columns: 224px minmax(0, 1fr);
-  gap: 22px;
+  grid-template-columns: 236px minmax(0, 1fr);
+  gap: 24px;
   align-items: start;
 }
 
@@ -290,12 +290,14 @@
   max-width: 60ch;
 }
 
-.manager-page-description {
-  display: none;
-}
-
+.manager-page-description,
 .manager-block-copy,
-.manager-section-copy {
+.manager-section-copy,
+.manager-drawer-description,
+.manager-accordion-copy,
+.manager-stat-ribbon,
+.manager-stat-ribbon-compact,
+.manager-stat-ribbon-premium {
   display: none;
 }
 
@@ -374,13 +376,14 @@
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.85fr);
   gap: 18px;
+  align-items: start;
 }
 
 .manager-overview-poster {
   position: relative;
   overflow: hidden;
-  gap: 22px;
-  padding: 24px;
+  gap: 14px;
+  padding: 20px;
   border: 1px solid rgba(184, 108, 47, 0.12);
   background:
     radial-gradient(circle at top right, rgba(184, 108, 47, 0.16), transparent 28%),
@@ -400,8 +403,6 @@
   pointer-events: none;
 }
 
-.manager-block-copy-visible,
-.manager-page-description,
 .manager-shell-context,
 .manager-page-kicker {
   display: block;
@@ -412,13 +413,11 @@
 .manager-overview-actions,
 .manager-overview-note {
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 
 .manager-overview-spotlights {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  display: none;
 }
 
 .manager-overview-spotlight,
@@ -472,7 +471,8 @@
 
 .manager-overview-sidecar {
   align-content: start;
-  padding: 18px;
+  align-self: start;
+  padding: 16px;
   border: 1px solid rgba(184, 108, 47, 0.12);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.88) 0%, rgba(245, 240, 232, 0.92) 100%);
 }
@@ -506,10 +506,6 @@
 
 .manager-overview-actions {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.manager-stat-ribbon-premium {
-  gap: 14px;
 }
 
 .manager-command-surface-secondary {
@@ -621,16 +617,6 @@
   justify-content: space-between;
   align-items: flex-start;
   gap: 12px;
-}
-
-.manager-stat-ribbon {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.manager-stat-ribbon-compact {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .manager-stat-card {
@@ -821,7 +807,7 @@
 .manager-drawer-panel.manager-drawer-panel-portal {
   position: relative;
   z-index: 1;
-  width: min(700px, calc(100vw - 20px));
+  width: min(1040px, calc(100vw - 28px));
   height: calc(100vh - 20px);
   display: grid;
   grid-template-rows: auto 1fr auto;
@@ -868,12 +854,6 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-}
-
-.manager-drawer-description {
-  display: block;
-  margin: 4px 0 0;
-  font-size: 0.8rem;
 }
 
 .manager-drawer-section {
@@ -1138,7 +1118,7 @@
 }
 
 .map-panel .leaflet-surface {
-  height: 52vh;
+  height: clamp(380px, 58vh, 720px);
 }
 
 .manager-accordion {
@@ -1171,10 +1151,6 @@
 
 .manager-accordion.open .manager-accordion-trigger {
   background: rgba(255, 255, 255, 0.65);
-}
-
-.manager-accordion-copy {
-  margin: 8px 0 0;
 }
 
 .manager-accordion-panel {
@@ -1278,23 +1254,22 @@
   }
 
   .manager-workbench {
-    width: 100%;
-    margin: 0;
-    display: block;
+    width: min(1680px, calc(100vw - 24px));
+    margin: 0 auto;
+    display: grid;
   }
 
   .manager-rail {
-    position: fixed;
+    position: sticky;
     top: 10px;
-    left: 0;
-    width: 224px;
-    height: calc(100vh - 20px);
-    min-height: 0;
-    overflow: auto;
+    left: auto;
+    width: auto;
+    height: auto;
+    min-height: calc(100vh - 20px);
   }
 
   .manager-canvas-shell {
-    width: min(1120px, calc(100vw - 480px));
+    width: min(1320px, 100%);
     margin: 0 auto;
   }
 }
@@ -1401,7 +1376,7 @@
   }
 
   .map-panel .leaflet-surface {
-    height: 360px;
+    height: 420px;
   }
 
   .program-day-card {

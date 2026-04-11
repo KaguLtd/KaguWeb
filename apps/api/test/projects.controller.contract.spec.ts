@@ -164,7 +164,6 @@ describe("ProjectsController contract", () => {
       .post("/api/projects")
       .send({
         name: "Yeni Proje",
-        code: "PRJ-200",
         description: "Kurulum",
         locationLabel: "Istanbul",
         latitude: 41.01,
@@ -192,7 +191,6 @@ describe("ProjectsController contract", () => {
     expect(projectsService.create).toHaveBeenCalledWith(
       {
         name: "Yeni Proje",
-        code: "PRJ-200",
         description: "Kurulum",
         locationLabel: "Istanbul",
         latitude: 41.01,

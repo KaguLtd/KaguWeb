@@ -102,6 +102,7 @@ export class ProjectsService {
 
     const customer = await this.resolveCustomer(dto.customerId);
     const createdAt = new Date();
+    const code = await this.generateProjectCode(customer?.name ?? null, createdAt);
     const storageRoot = await this.storageService.resolveUniqueProjectStorageRoot(
       {
         id: randomUUID(),
@@ -126,7 +127,7 @@ export class ProjectsService {
         data: {
           customerId: customer?.id ?? null,
           name: dto.name.trim(),
-          code: dto.code?.trim() || null,
+          code,
           description: dto.description?.trim() || null,
           locationLabel: dto.locationLabel?.trim() || null,
           latitude: dto.latitude,
@@ -197,7 +198,6 @@ export class ProjectsService {
         data: {
           customerId,
           name: dto.name?.trim(),
-          code: dto.code === undefined ? undefined : dto.code?.trim() || null,
           description:
             dto.description === undefined ? undefined : dto.description?.trim() || null,
           locationLabel:
@@ -799,6 +799,59 @@ export class ProjectsService {
     }
 
     return stagedFiles;
+  }
+
+  private async generateProjectCode(customerName: string | null, createdAt: Date) {
+    const prefix = this.buildProjectCodePrefix(customerName, createdAt);
+    const matchingProjects = await this.prisma.project.findMany({
+      where: {
+        code: {
+          startsWith: prefix
+        }
+      },
+      select: {
+        code: true
+      }
+    });
+
+    const nextCounter =
+      matchingProjects
+        .filter((project) => project.code?.startsWith(prefix))
+        .reduce((highest, project) => {
+        const current = this.parseProjectCodeCounter(project.code);
+        return current > highest ? current : highest;
+      }, 0) + 1;
+
+    return `${prefix}${String(nextCounter).padStart(4, "0")}`;
+  }
+
+  private buildProjectCodePrefix(customerName: string | null, createdAt: Date) {
+    const customerSegment = this.normalizeProjectCodeSegment(customerName || "CariYok");
+    const day = String(createdAt.getDate()).padStart(2, "0");
+    const month = String(createdAt.getMonth() + 1).padStart(2, "0");
+    const year = String(createdAt.getFullYear());
+
+    return `${customerSegment}_${day}_${month}_${year}_00 `;
+  }
+
+  private normalizeProjectCodeSegment(value: string) {
+    const normalized = value
+      .trim()
+      .normalize("NFKC")
+      .replace(/[^\p{L}\p{N}]+/gu, "_")
+      .replace(/^_+|_+$/g, "")
+      .replace(/_+/g, "_");
+
+    return normalized || "CariYok";
+  }
+
+  private parseProjectCodeCounter(code: string | null) {
+    if (!code) {
+      return 0;
+    }
+
+    const match = code.match(/00\s(\d{4})$/);
+    return match ? Number(match[1]) : 0;
   }
 
   private async cleanupStoredFiles(

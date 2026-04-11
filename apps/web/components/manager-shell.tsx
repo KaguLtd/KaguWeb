@@ -8,51 +8,24 @@ import { useAuth } from "./auth-provider";
 import {
   CalendarIcon,
   DashboardIcon,
+  FileIcon,
   FolderIcon,
   LogoutIcon,
   MapIcon,
   TimelineIcon,
-  FileIcon,
   UsersIcon
 } from "./ui-icons";
 
 const navigation = [
-  {
-    href: "/dashboard",
-    label: "Dashboard"
-  },
-  {
-    href: "/dashboard/projects",
-    label: "Projeler"
-  },
-  {
-    href: "/dashboard/users",
-    label: "Kullanicilar"
-  },
-  {
-    href: "/dashboard/program",
-    label: "Gunluk Program"
-  },
-  {
-    href: "/dashboard/templates",
-    label: "Template'ler"
-  },
-  {
-    href: "/dashboard/forms",
-    label: "Saha Formlari"
-  },
-  {
-    href: "/dashboard/form-responses",
-    label: "Form Cevaplari"
-  },
-  {
-    href: "/dashboard/jobs",
-    label: "Is Gecmisi"
-  },
-  {
-    href: "/dashboard/tracking",
-    label: "Takip"
-  }
+  { href: "/dashboard", label: "Genel Bakış" },
+  { href: "/dashboard/projects", label: "Projeler" },
+  { href: "/dashboard/users", label: "Kullanıcılar" },
+  { href: "/dashboard/program", label: "Günlük Program" },
+  { href: "/dashboard/templates", label: "Tekrarlı İşler" },
+  { href: "/dashboard/forms", label: "Saha Formları" },
+  { href: "/dashboard/form-responses", label: "Form Yanıtları" },
+  { href: "/dashboard/jobs", label: "İş Geçmişi" },
+  { href: "/dashboard/tracking", label: "Takip" }
 ] as const;
 
 const iconByHref = {
@@ -68,42 +41,15 @@ const iconByHref = {
 } as const;
 
 const routeCopy = {
-  dashboard: {
-    kicker: "Operasyon merkezi",
-    description: "Saha durumu, raporlar ve bildirim ozetleri tek calisma yuzeyinde."
-  },
-  projects: {
-    kicker: "Kayit yonetimi",
-    description: "Proje klasorleri, konum bilgisi ve ana dosya akislarini birlikte yonetin."
-  },
-  users: {
-    kicker: "Ekip dizini",
-    description: "Hesaplari, rollerini ve kullanilabilirlik durumlarini kontrollu sekilde yonetin."
-  },
-  program: {
-    kicker: "Gun plani",
-    description: "Secili tarih icin proje secimini, ekip atamalarini ve not akislarini yonetin."
-  },
-  templates: {
-    kicker: "Tekrarli planlar",
-    description: "Program template'lerini, preview ve materialize akislarini tek panelden yonetin."
-  },
-  forms: {
-    kicker: "Yapilandirilmis formlar",
-    description: "Saha form template'lerini, versiyonlarini ve kullanim hazirligini yonetin."
-  },
-  "form-responses": {
-    kicker: "Saha cevaplari",
-    description: "Kaydedilen form cevaplarini proje, actor ve template bazinda inceleyin."
-  },
-  jobs: {
-    kicker: "Arka plan isleri",
-    description: "Materialize ve reminder gibi operasyonlarin calisma gecmisini izleyin."
-  },
-  tracking: {
-    kicker: "Canli takip",
-    description: "Harita, saha hareketi ve bildirim kampanyalarini ayni panelde izleyin."
-  }
+  dashboard: { kicker: "Operasyon merkezi" },
+  projects: { kicker: "Kayıt yönetimi" },
+  users: { kicker: "Ekip dizini" },
+  program: { kicker: "Gün planı" },
+  templates: { kicker: "Tekrarlı planlar" },
+  forms: { kicker: "Yapılandırılmış formlar" },
+  "form-responses": { kicker: "Saha yanıtları" },
+  jobs: { kicker: "Arka plan işleri" },
+  tracking: { kicker: "Canlı takip" }
 } as const;
 
 type ManagerShellProps = {
@@ -119,33 +65,15 @@ function isActivePath(pathname: string, href: (typeof navigation)[number]["href"
 }
 
 function resolveTheme(pathname: string) {
-  if (pathname === "/dashboard") {
-    return "dashboard";
-  }
-  if (pathname.startsWith("/dashboard/projects")) {
-    return "projects";
-  }
-  if (pathname.startsWith("/dashboard/users")) {
-    return "users";
-  }
-  if (pathname.startsWith("/dashboard/program")) {
-    return "program";
-  }
-  if (pathname.startsWith("/dashboard/templates")) {
-    return "templates";
-  }
-  if (pathname.startsWith("/dashboard/forms")) {
-    return "forms";
-  }
-  if (pathname.startsWith("/dashboard/form-responses")) {
-    return "form-responses";
-  }
-  if (pathname.startsWith("/dashboard/jobs")) {
-    return "jobs";
-  }
-  if (pathname.startsWith("/dashboard/tracking")) {
-    return "tracking";
-  }
+  if (pathname === "/dashboard") return "dashboard";
+  if (pathname.startsWith("/dashboard/projects")) return "projects";
+  if (pathname.startsWith("/dashboard/users")) return "users";
+  if (pathname.startsWith("/dashboard/program")) return "program";
+  if (pathname.startsWith("/dashboard/templates")) return "templates";
+  if (pathname.startsWith("/dashboard/forms")) return "forms";
+  if (pathname.startsWith("/dashboard/form-responses")) return "form-responses";
+  if (pathname.startsWith("/dashboard/jobs")) return "jobs";
+  if (pathname.startsWith("/dashboard/tracking")) return "tracking";
   return "dashboard";
 }
 
@@ -153,7 +81,7 @@ export function ManagerShell({
   title,
   children,
   kicker,
-  description,
+  description: _description,
   contextItems
 }: ManagerShellProps) {
   const pathname = usePathname();
@@ -168,9 +96,7 @@ export function ManagerShell({
   useEffect(() => {
     const restoreId = window.requestAnimationFrame(() => {
       const saved = window.sessionStorage.getItem(scrollKey);
-      if (!saved) {
-        return;
-      }
+      if (!saved) return;
 
       const next = Number(saved);
       if (Number.isFinite(next)) {
@@ -207,8 +133,8 @@ export function ManagerShell({
       <div className="login-shell">
         <div className="panel glass shell-loading-card">
           <div className="shell-loading-copy">
-            <strong>Calisma alani hazirlaniyor</strong>
-            <span>Oturum ve sayfa baglami yukleniyor.</span>
+            <strong>Çalışma alanı hazırlanıyor</strong>
+            <span>Oturum bağlamı yükleniyor.</span>
           </div>
         </div>
       </div>
@@ -226,7 +152,7 @@ export function ManagerShell({
 
   const defaultContextItems = [
     `${navigation.find((item) => isActivePath(pathname, item.href))?.label ?? title}`,
-    "Manager oturumu"
+    "Yönetim oturumu"
   ];
 
   const resolvedContextItems = contextItems?.length ? contextItems : defaultContextItems;
@@ -235,7 +161,7 @@ export function ManagerShell({
     <div className="app-shell manager-shell-v3" data-manager-theme={theme}>
       <div className="manager-shell-aura" aria-hidden="true" />
       <div className="manager-workbench">
-        <aside className="manager-rail manager-rail-wide" aria-label="Yonetici gezinme">
+        <aside className="manager-rail manager-rail-wide" aria-label="Yönetici gezinme">
           <div className="manager-rail-brand">
             <div className="manager-rail-mark manager-rail-mark-logo">
               <Image alt="Kagu" height={32} priority src="/icon.svg" width={32} />
@@ -264,7 +190,7 @@ export function ManagerShell({
                   </span>
                   <span className="manager-rail-copy">
                     <strong>{item.label}</strong>
-                    <small>{active ? "Secili yuzey" : "Calisma alani"}</small>
+                    <small>{active ? "Seçili ekran" : "Çalışma alanı"}</small>
                   </span>
                 </Link>
               );
@@ -290,7 +216,7 @@ export function ManagerShell({
               </span>
               <span className="manager-rail-copy">
                 <strong>Oturumu Kapat</strong>
-                <small>Bu cihazdan cikis yap</small>
+                <small>Bu cihazdan çıkış yap</small>
               </span>
             </button>
           </div>
@@ -305,13 +231,12 @@ export function ManagerShell({
                 </div>
                 <div className="manager-topbar-brandcopy">
                   <strong>Kagu Ltd.</strong>
-                  <span>Manager workspace</span>
+                  <span>Yönetim çalışma alanı</span>
                 </div>
               </div>
               <div className="manager-page-heading">
                 <div className="manager-page-kicker">{kicker ?? descriptor.kicker}</div>
                 <h1 className="manager-page-title manager-page-title-compact">{title}</h1>
-                <p className="manager-page-description">{description ?? descriptor.description}</p>
               </div>
               <div className="manager-shell-context">
                 {resolvedContextItems.map((item) => (
@@ -333,7 +258,7 @@ export function ManagerShell({
 
               <button className="button ghost manager-mobile-logout" onClick={logout} type="button">
                 <LogoutIcon />
-                <span>Cikis</span>
+                <span>Çıkış</span>
               </button>
             </div>
           </header>
@@ -342,7 +267,7 @@ export function ManagerShell({
         </div>
       </div>
 
-      <nav className="manager-mobile-nav" aria-label="Yonetici mobil gezinme">
+      <nav className="manager-mobile-nav" aria-label="Yönetici mobil gezinme">
         {navigation.map((item) => {
           const active = isActivePath(pathname, item.href);
           const Icon = iconByHref[item.href];

@@ -206,6 +206,7 @@ describe("ProjectsService", () => {
         findUnique: jest.fn()
       },
       project: {
+        findMany: jest.fn().mockResolvedValue([]),
         create: jest.fn().mockRejectedValue(new Error("db-failed"))
       }
     };

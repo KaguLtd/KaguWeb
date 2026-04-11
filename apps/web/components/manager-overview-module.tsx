@@ -15,6 +15,7 @@ import {
   getTodayLocal,
   shiftDateString
 } from "../lib/date";
+import { AlertMessage } from "./alert-message";
 import { useAuth } from "./auth-provider";
 import {
   CalendarIcon,
@@ -401,7 +402,7 @@ export function ManagerOverviewModule() {
         </aside>
       </section>
 
-      {message ? <div className="alert">{message}</div> : null}
+      {message ? <AlertMessage message={message} /> : null}
 
       <section className="manager-stat-ribbon manager-stat-ribbon-premium">
         {summaryCards.map((card) => (

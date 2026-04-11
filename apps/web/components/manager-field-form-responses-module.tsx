@@ -5,6 +5,7 @@ import { ProjectSummary } from "@kagu/contracts";
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch, isAbortError } from "../lib/api";
 import { formatDisplayDateTime } from "../lib/date";
+import { AlertMessage } from "./alert-message";
 import { useAuth } from "./auth-provider";
 import { ManagerDrawer, ManagerDrawerSection } from "./manager-ui";
 import { FileIcon, TimelineIcon, UsersIcon } from "./ui-icons";
@@ -95,7 +96,7 @@ export function ManagerFieldFormResponsesModule() {
       })
       .catch((error) => {
         if (!isAbortError(error)) {
-          setMessage(error instanceof Error ? error.message : "Form cevaplari yuklenemedi.");
+          setMessage(error instanceof Error ? error.message : "Form yanıtları yüklenemedi.");
         }
       })
       .finally(() => {
@@ -140,7 +141,7 @@ export function ManagerFieldFormResponsesModule() {
       setLoading(true);
       await fetchResponses();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Filtreli cevap listesi alinamadi.");
+      setMessage(error instanceof Error ? error.message : "Filtrelenmiş yanıt listesi alınamadı.");
     } finally {
       setLoading(false);
     }
@@ -157,7 +158,7 @@ export function ManagerFieldFormResponsesModule() {
       setSelectedResponse(data);
       setDetailOpen(true);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Form cevap detayi alinamadi.");
+      setMessage(error instanceof Error ? error.message : "Form yanıt detayı alınamadı.");
     } finally {
       setDetailLoading(false);
     }
@@ -172,15 +173,15 @@ export function ManagerFieldFormResponsesModule() {
       icon: FileIcon
     },
     {
-      label: "Template",
+      label: "Form",
       value: `${new Set(responses.map((response) => response.templateId)).size}`,
-      detail: "Farkli form kaynagi",
+      detail: "Farklı form kaynağı",
       icon: TimelineIcon
     },
     {
       label: "Personel",
       value: `${new Set(responses.map((response) => response.actorId)).size}`,
-      detail: "Cevap yazan saha personeli",
+      detail: "Yanıt yazan saha personeli",
       icon: UsersIcon
     }
   ];
@@ -191,8 +192,8 @@ export function ManagerFieldFormResponsesModule() {
         <section className="manager-overview-hero">
           <div className="manager-command-surface manager-overview-poster">
           <div className="manager-command-copy">
-            <span className="manager-command-kicker">Form cevaplari</span>
-            <h2 className="manager-block-title">Kaydedilen saha cevaplarini inceleyin</h2>
+            <span className="manager-command-kicker">Form yanıtları</span>
+            <h2 className="manager-block-title">Kaydedilen saha yanıtlarını inceleyin</h2>
             <p className="manager-block-copy manager-block-copy-visible">
               Template, proje ve personel bazinda filtreleyin; sonra detay drawer’inda payload’i okuyun.
             </p>
@@ -200,7 +201,7 @@ export function ManagerFieldFormResponsesModule() {
           <div className="manager-overview-highlights">
             <div className="manager-inline-actions manager-inline-actions-wrap">
               <Link className="button ghost" href="/dashboard/forms" scroll={false}>
-                Formlara Don
+                Formlara Dön
               </Link>
               <select
                 className="select"
@@ -209,7 +210,7 @@ export function ManagerFieldFormResponsesModule() {
                 }
                 value={filters.templateId}
               >
-                <option value="">Tum template'ler</option>
+                <option value="">Tüm formlar</option>
                 {templates.map((template) => (
                   <option key={template.id} value={template.id}>
                     {template.name}
@@ -223,7 +224,7 @@ export function ManagerFieldFormResponsesModule() {
                 }
                 value={filters.projectId}
               >
-                <option value="">Tum projeler</option>
+                <option value="">Tüm projeler</option>
                 {projects.map((project) => (
                   <option key={project.id} value={project.id}>
                     {project.name}
@@ -237,7 +238,7 @@ export function ManagerFieldFormResponsesModule() {
                 }
                 value={filters.actorId}
               >
-                <option value="">Tum personel</option>
+                <option value="">Tüm personel</option>
                 {actorOptions.map((actor) => (
                   <option key={actor.id} value={actor.id}>
                     {actor.displayName}
@@ -272,8 +273,8 @@ export function ManagerFieldFormResponsesModule() {
           <aside className="manager-surface-card manager-overview-sidecar">
             <div className="manager-section-head compact">
               <div>
-                <span className="manager-section-kicker">Secili cevap</span>
-                <h3 className="manager-section-title">Payload ozeti</h3>
+                <span className="manager-section-kicker">Seçili yanıt</span>
+                <h3 className="manager-section-title">Yük özeti</h3>
               </div>
               <span className="manager-mini-chip">{previewResponse ? `v${previewResponse.templateVersionNumber}` : "-"}</span>
             </div>
@@ -284,9 +285,9 @@ export function ManagerFieldFormResponsesModule() {
                   <FileIcon />
                 </span>
                 <div>
-                  <strong>Template</strong>
-                  <b>{previewResponse?.templateName ?? "Secim yok"}</b>
-                  <p>{previewResponse?.templateVersionTitle ?? "Versiyon bilgisi bekleniyor"}</p>
+                  <strong>Form</strong>
+                  <b>{previewResponse?.templateName ?? "Seçim yok"}</b>
+                  <p>{previewResponse?.templateVersionTitle ?? "Sürüm bilgisi bekleniyor"}</p>
                 </div>
               </article>
               <article className="manager-overview-status">
@@ -296,58 +297,35 @@ export function ManagerFieldFormResponsesModule() {
                 <div>
                   <strong>Kaydeden</strong>
                   <b>{previewResponse?.actor.displayName ?? "-"}</b>
-                  <p>{previewResponse?.projectName ?? "Proje baglami bekleniyor"}</p>
+                  <p>{previewResponse?.projectName ?? "Proje bağlamı bekleniyor"}</p>
                 </div>
               </article>
             </div>
 
             <div className="manager-overview-note">
-              <strong>{previewResponse?.templateName ?? "Response secin"}</strong>
-              <p>{previewResponse ? formatDisplayDateTime(previewResponse.createdAt) : "Kayit zamani bekleniyor."}</p>
-              <p>{previewResponse?.projectEntryId ? "Timeline bagli cevap." : "Dogrudan response kaydi."}</p>
+              <strong>{previewResponse?.templateName ?? "Yanıt seçin"}</strong>
+              <p>{previewResponse ? formatDisplayDateTime(previewResponse.createdAt) : "Kayıt zamanı bekleniyor."}</p>
+              <p>{previewResponse?.projectEntryId ? "Akışa bağlı yanıt." : "Doğrudan yanıt kaydı."}</p>
             </div>
           </aside>
         </section>
 
-        {message ? <div className="alert">{message}</div> : null}
-
-        <section className="manager-stat-ribbon manager-stat-ribbon-compact manager-stat-ribbon-premium">
-          <article className="manager-stat-card">
-            <span>Cevap</span>
-            <strong>{loading ? "..." : responses.length}</strong>
-            <small>Mevcut filtre sonucu</small>
-          </article>
-          <article className="manager-stat-card">
-            <span>Template</span>
-            <strong>{new Set(responses.map((response) => response.templateId)).size}</strong>
-            <small>Farkli form kaynagi</small>
-          </article>
-          <article className="manager-stat-card">
-            <span>Proje</span>
-            <strong>{new Set(responses.map((response) => response.projectId)).size}</strong>
-            <small>Dokunulan proje</small>
-          </article>
-          <article className="manager-stat-card">
-            <span>Personel</span>
-            <strong>{new Set(responses.map((response) => response.actorId)).size}</strong>
-            <small>Cevap yazan saha</small>
-          </article>
-        </section>
+        {message ? <AlertMessage message={message} /> : null}
 
         <section className="manager-panel-split">
           <section className="manager-surface-card">
           <div className="manager-section-head compact">
             <div>
-              <span className="manager-section-kicker">Response listesi</span>
-              <h3 className="manager-section-title">Son kayitlar</h3>
+              <span className="manager-section-kicker">Yanıt listesi</span>
+              <h3 className="manager-section-title">Son kayıtlar</h3>
             </div>
             <span className="manager-mini-chip">{responses.length} cevap</span>
           </div>
 
           {loading ? (
-            <div className="empty">Form cevap listesi yukleniyor.</div>
+            <div className="empty">Form yanıt listesi yükleniyor.</div>
           ) : !responses.length ? (
-            <div className="empty">Secili filtreye uygun form cevabi bulunmuyor.</div>
+            <div className="empty">Seçili filtreye uygun form yanıtı bulunmuyor.</div>
           ) : (
             <div className="manager-feed-list">
               {responses.map((response) => (
@@ -374,7 +352,7 @@ export function ManagerFieldFormResponsesModule() {
                     </span>
                     <span className="manager-mini-chip">{response.templateVersionTitle}</span>
                     {response.projectEntryId ? (
-                      <span className="manager-mini-chip">Timeline bagli</span>
+                      <span className="manager-mini-chip">Akışa bağlı</span>
                     ) : null}
                   </div>
                 </button>
@@ -386,14 +364,14 @@ export function ManagerFieldFormResponsesModule() {
           <aside className="manager-surface-card manager-focus-panel">
             <div className="manager-section-head compact">
               <div>
-                <span className="manager-section-kicker">Hizli okuma</span>
-                <h3 className="manager-section-title">Secili response paneli</h3>
+                <span className="manager-section-kicker">Hızlı okuma</span>
+                <h3 className="manager-section-title">Seçili yanıt paneli</h3>
               </div>
-              <span className="manager-mini-chip">{previewResponse?.projectName ?? "Kayit yok"}</span>
+              <span className="manager-mini-chip">{previewResponse?.projectName ?? "Kayıt yok"}</span>
             </div>
 
             {!previewResponse ? (
-              <div className="empty">Secili response olmadigi icin onizleme gosterilemiyor.</div>
+              <div className="empty">Seçili yanıt olmadığı için önizleme gösterilemiyor.</div>
             ) : (
               <div className="manager-focus-stack">
                 <div className="manager-focus-lead">
@@ -411,8 +389,8 @@ export function ManagerFieldFormResponsesModule() {
                     <strong>{previewResponse.actor.displayName}</strong>
                   </div>
                   <div className="manager-sheet-card">
-                    <span>Timeline</span>
-                    <strong>{previewResponse.projectEntryId ? "Bagli" : "Yok"}</strong>
+                    <span>Akış</span>
+                    <strong>{previewResponse.projectEntryId ? "Bağlı" : "Yok"}</strong>
                   </div>
                   <div className="manager-sheet-card">
                     <span>Zaman</span>
@@ -422,7 +400,7 @@ export function ManagerFieldFormResponsesModule() {
 
                 <div className="manager-overview-actions">
                   <button className="button" onClick={() => void openResponseDetail(previewResponse.id)} type="button">
-                    Detayi Ac
+                    Detayı Aç
                   </button>
                   <button className="button ghost" onClick={() => setFilters(emptyFilters)} type="button">
                     Filtreleri Temizle
@@ -437,23 +415,21 @@ export function ManagerFieldFormResponsesModule() {
       <ManagerDrawer
         onClose={() => setDetailOpen(false)}
         open={detailOpen && Boolean(selectedResponse)}
-        title={selectedResponse?.templateName ?? "Form Cevabi"}
-        description="Kaydedilen payload, bagli proje ve timeline iliskisi bu panelde gorunur."
+        title={selectedResponse?.templateName ?? "Form Yanıtı"}
       >
         {selectedResponse ? (
           <div className="stack">
-            {detailLoading ? <div className="empty">Detay yukleniyor.</div> : null}
+            {detailLoading ? <div className="empty">Detay yükleniyor.</div> : null}
 
             <ManagerDrawerSection
-              eyebrow="Baglam"
-              title="Kayit ozeti"
-              description="Response kaydinin kaynak template ve proje bilgisi."
+              eyebrow="Bağlam"
+              title="Kayıt özeti"
             >
               <div className="manager-table-wrap">
                 <table className="manager-table">
                   <tbody>
                     <tr>
-                      <th>Template</th>
+                      <th>Form</th>
                       <td>{selectedResponse.templateName}</td>
                     </tr>
                     <tr>
@@ -479,8 +455,7 @@ export function ManagerFieldFormResponsesModule() {
 
             <ManagerDrawerSection
               eyebrow="Payload"
-              title="Kaydedilen cevap"
-              description="Sisteme yazilan alanlar ham JSON olarak korunur."
+              title="Kaydedilen yanıt"
             >
               <pre className="manager-json-block">
                 {JSON.stringify(selectedResponse.payload, null, 2)}
@@ -488,7 +463,7 @@ export function ManagerFieldFormResponsesModule() {
             </ManagerDrawerSection>
           </div>
         ) : (
-          <div className="empty">Detay secimi bekleniyor.</div>
+          <div className="empty">Detay seçimi bekleniyor.</div>
         )}
       </ManagerDrawer>
     </>

@@ -4,10 +4,10 @@ import { ManagerShell } from "../../../../components/manager-shell";
 export default function ManagerFieldFormResponsesPage() {
   return (
     <ManagerShell
-      title="Form Cevaplari"
-      kicker="Saha cevaplari"
-      description="Template, proje ve personel baglaminda kaydedilen cevaplari inceleyin."
-      contextItems={["Response katalogu", "Payload ve proje baglami"]}
+      title="Form Yanıtları"
+      kicker="Saha yanıtları"
+      description="Kaydedilen form yanıtlarını inceleyin."
+      contextItems={["Yanıt kataloğu", "Yük ve proje bağı"]}
     >
       <ManagerFieldFormResponsesModule />
     </ManagerShell>

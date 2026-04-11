@@ -5,9 +5,9 @@ export default function ManagerProjectsPage() {
   return (
     <ManagerShell
       title="Projeler"
-      kicker="Kayit yonetimi"
-      description="Cari, konum ve dosya akislarini birlestiren proje workspace'i."
-      contextItems={["Proje klasorleri", "Cari ve konum baglami"]}
+      kicker="Kayıt yönetimi"
+      description="Cari, konum ve dosya akışlarını birleştiren proje çalışma alanı."
+      contextItems={["Proje klasörleri", "Cari ve konum bağı"]}
     >
       <ManagerProjectsModule />
     </ManagerShell>

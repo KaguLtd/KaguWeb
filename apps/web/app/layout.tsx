@@ -8,14 +8,14 @@ import "./theme-overrides.css";
 import "./theme-mobile.css";
 
 const body = Plus_Jakarta_Sans({
-  subsets: ["latin"],
+  subsets: ["latin", "latin-ext"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-body"
 });
 
 export const metadata: Metadata = {
   title: "Kagu Saha Takip",
-  description: "Yonetici ve saha ekipleri icin proje bazli saha operasyon paneli.",
+  description: "Yönetici ve saha ekipleri için proje bazlı saha operasyon paneli.",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",

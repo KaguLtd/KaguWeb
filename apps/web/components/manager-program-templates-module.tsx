@@ -5,6 +5,7 @@ import { ManagerUserSummary, ProjectSummary } from "@kagu/contracts";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { apiFetch, isAbortError } from "../lib/api";
 import { formatDisplayDate } from "../lib/date";
+import { AlertMessage } from "./alert-message";
 import { useAuth } from "./auth-provider";
 import { ManagerDrawer, ManagerDrawerSection } from "./manager-ui";
 import { CalendarIcon, CheckCircleIcon, TimelineIcon, UsersIcon } from "./ui-icons";
@@ -206,7 +207,7 @@ export function ManagerProgramTemplatesModule() {
       })
       .catch((error) => {
         if (!isAbortError(error)) {
-          setMessage(error instanceof Error ? error.message : "Template verisi yuklenemedi.");
+          setMessage(error instanceof Error ? error.message : "Tekrarlı iş verisi yüklenemedi.");
         }
       })
       .finally(() => {
@@ -236,7 +237,7 @@ export function ManagerProgramTemplatesModule() {
       .then((data) => setDetail(data))
       .catch((error) => {
         if (!isAbortError(error)) {
-          setMessage(error instanceof Error ? error.message : "Template detayi yuklenemedi.");
+          setMessage(error instanceof Error ? error.message : "Tekrarlı iş detayı yüklenemedi.");
         }
       })
       .finally(() => {
@@ -291,9 +292,9 @@ export function ManagerProgramTemplatesModule() {
         token
       );
       setPreview(data);
-      setMessage("Template preview guncellendi.");
+      setMessage("Tekrarlı iş önizlemesi güncellendi.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Preview olusturulamadi.");
+      setMessage(error instanceof Error ? error.message : "Önizleme oluşturulamadı.");
     } finally {
       setActionLoading(false);
     }
@@ -312,9 +313,9 @@ export function ManagerProgramTemplatesModule() {
         token
       );
       await Promise.all([refreshTemplates(), refreshDetail(selectedTemplateId)]);
-      setMessage(nextActive ? "Template aktive edildi." : "Template pasife alindi.");
+      setMessage(nextActive ? "Tekrarlı iş etkinleştirildi." : "Tekrarlı iş pasife alındı.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Template durumu guncellenemedi.");
+      setMessage(error instanceof Error ? error.message : "Tekrarlı iş durumu güncellenemedi.");
     } finally {
       setActionLoading(false);
     }
@@ -463,9 +464,9 @@ export function ManagerProgramTemplatesModule() {
       setSelectedTemplateId(response.id);
       await refreshDetail(response.id);
       setEditorOpen(false);
-      setMessage(editorMode === "create" ? "Template olusturuldu." : "Template guncellendi.");
+      setMessage(editorMode === "create" ? "Tekrarlı iş oluşturuldu." : "Tekrarlı iş güncellendi.");
     } catch (error) {
-      setEditorMessage(error instanceof Error ? error.message : "Template kaydedilemedi.");
+      setEditorMessage(error instanceof Error ? error.message : "Tekrarlı iş kaydedilemedi.");
     } finally {
       setSavingEditor(false);
     }
@@ -473,21 +474,21 @@ export function ManagerProgramTemplatesModule() {
 
   const templateSignalCards = [
     {
-      label: "Template",
+      label: "Tekrarlı İş",
       value: `${templates.length}`,
-      detail: "Kayitli tekrarli plan",
+      detail: "Kayıtlı tekrarlı iş",
       icon: CalendarIcon
     },
     {
       label: "Aktif",
       value: `${templates.filter((template) => template.isActive).length}`,
-      detail: "Materialize edilebilir template",
+      detail: "Uygulanabilir tekrarlı iş",
       icon: CheckCircleIcon
     },
     {
       label: "Atama",
       value: `${selectedTemplate?.assignmentCount ?? 0}`,
-      detail: "Secili template altindaki toplam ekip baglantisi",
+      detail: "Seçili iş altındaki toplam ekip bağlantısı",
       icon: UsersIcon
     }
   ];
@@ -600,30 +601,7 @@ export function ManagerProgramTemplatesModule() {
         </aside>
       </section>
 
-      {message ? <div className="alert">{message}</div> : null}
-
-      <section className="manager-stat-ribbon manager-stat-ribbon-compact manager-stat-ribbon-premium">
-        <article className="manager-stat-card">
-          <span>Template</span>
-          <strong>{loading ? "..." : templates.length}</strong>
-          <small>Kayitli tekrarli plan</small>
-        </article>
-        <article className="manager-stat-card">
-          <span>Aktif</span>
-          <strong>{templates.filter((template) => template.isActive).length}</strong>
-          <small>Materialize edilebilir</small>
-        </article>
-        <article className="manager-stat-card">
-          <span>Secili tarih</span>
-          <strong>{previewDate.slice(-2)}</strong>
-          <small>{formatDisplayDate(previewDate)}</small>
-        </article>
-        <article className="manager-stat-card">
-          <span>Secili template</span>
-          <strong>{selectedTemplate ? "Hazir" : "Yok"}</strong>
-          <small>{selectedTemplate?.name ?? "Listeden secin"}</small>
-        </article>
-      </section>
+      {message ? <AlertMessage message={message} /> : null}
 
       <div className="manager-panel-split">
         <section className="manager-surface-card">
@@ -632,13 +610,13 @@ export function ManagerProgramTemplatesModule() {
               <span className="manager-section-kicker">Template listesi</span>
               <h3 className="manager-section-title">Kayitli sablonlar</h3>
             </div>
-            <span className="manager-mini-chip">{templates.length} kayit</span>
+            <span className="manager-mini-chip">{templates.length} kayıt</span>
           </div>
 
           {loading ? (
-            <div className="empty">Template listesi yukleniyor.</div>
+            <div className="empty">Tekrarlı iş listesi yükleniyor.</div>
           ) : !templates.length ? (
-            <div className="empty">Henuz kayitli program template bulunmuyor.</div>
+            <div className="empty">Henüz kayıtlı tekrarlı iş bulunmuyor.</div>
           ) : (
             <div className="manager-directory-list">
               {templates.map((template) => (
@@ -707,7 +685,7 @@ export function ManagerProgramTemplatesModule() {
           {!selectedTemplateId ? (
             <div className="empty">Detay gormek icin bir template secin.</div>
           ) : detailLoading ? (
-            <div className="empty">Template detayi yukleniyor.</div>
+            <div className="empty">Tekrarlı iş detayı yükleniyor.</div>
           ) : !detail ? (
             <div className="empty">Template detayi okunamadi.</div>
           ) : (
@@ -819,7 +797,7 @@ export function ManagerProgramTemplatesModule() {
                     <div className="manager-feed-topline">
                       <div>
                         <strong>{plan.project.name}</strong>
-                        <p className="muted">{plan.action === "create" ? "Yeni eklenecek" : "Mevcut kayitla merge"}</p>
+                        <p className="muted">{plan.action === "create" ? "Yeni eklenecek" : "Mevcut kayıtla birleştirilecek"}</p>
                       </div>
                       <span className="manager-mini-chip">{plan.assignmentPlans.length} atama</span>
                     </div>
@@ -846,7 +824,7 @@ export function ManagerProgramTemplatesModule() {
       description="Template metadata, tekrar kurali ve proje/ekip setini tek panelden yonetin."
     >
       <form className="stack" onSubmit={(event) => void handleSaveEditor(event)}>
-        {editorMessage ? <div className="alert">{editorMessage}</div> : null}
+        {editorMessage ? <AlertMessage message={editorMessage} /> : null}
 
         <ManagerDrawerSection
           eyebrow="Kimlik"

@@ -10,6 +10,7 @@ import {
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { apiFetch, isAbortError } from "../lib/api";
 import { formatDisplayDate } from "../lib/date";
+import { AlertMessage } from "./alert-message";
 import { useAuth } from "./auth-provider";
 import { ManagerDrawer, ManagerDrawerSection } from "./manager-ui";
 import { CheckCircleIcon, FileIcon, TimelineIcon } from "./ui-icons";
@@ -33,12 +34,12 @@ type TemplateDraft = {
 };
 
 const fieldTypeOptions: Array<{ value: FieldFormFieldType; label: string }> = [
-  { value: "TEXT", label: "Kisa metin" },
+  { value: "TEXT", label: "Kısa metin" },
   { value: "TEXTAREA", label: "Uzun metin" },
-  { value: "NUMBER", label: "Sayi" },
-  { value: "BOOLEAN", label: "Evet/Hayir" },
+  { value: "NUMBER", label: "Sayı" },
+  { value: "BOOLEAN", label: "Evet/Hayır" },
   { value: "DATE", label: "Tarih" },
-  { value: "SELECT", label: "Secim" }
+  { value: "SELECT", label: "Seçim" }
 ];
 
 const emptyDraft: TemplateDraft = {
@@ -49,7 +50,7 @@ const emptyDraft: TemplateDraft = {
   fields: [
     {
       key: "summary",
-      label: "Ozet",
+      label: "Özet",
       type: "TEXTAREA",
       required: true,
       optionsText: ""
@@ -129,7 +130,7 @@ export function ManagerFieldFormsModule() {
       })
       .catch((error) => {
         if (!isAbortError(error)) {
-          setMessage(error instanceof Error ? error.message : "Saha form template listesi yuklenemedi.");
+          setMessage(error instanceof Error ? error.message : "Saha form listesi yüklenemedi.");
         }
       })
       .finally(() => {
@@ -158,7 +159,7 @@ export function ManagerFieldFormsModule() {
       .then((data) => setDetail(data))
       .catch((error) => {
         if (!isAbortError(error)) {
-          setMessage(error instanceof Error ? error.message : "Saha form template detayi yuklenemedi.");
+          setMessage(error instanceof Error ? error.message : "Saha form detayı yüklenemedi.");
         }
       })
       .finally(() => {
@@ -289,7 +290,7 @@ export function ManagerFieldFormsModule() {
         await refreshTemplates();
         setSelectedTemplateId(response.id);
         await refreshDetail(response.id);
-        setMessage("Saha form template'i olusturuldu.");
+        setMessage("Saha formu oluşturuldu.");
       } else if (editorMode === "edit") {
         await apiFetch(
           `/field-form-templates/${selectedTemplateId}`,
@@ -304,7 +305,7 @@ export function ManagerFieldFormsModule() {
           token
         );
         await Promise.all([refreshTemplates(), refreshDetail(selectedTemplateId)]);
-        setMessage("Saha form template'i guncellendi.");
+        setMessage("Saha formu güncellendi.");
       } else {
         await apiFetch(
           `/field-form-templates/${selectedTemplateId}/versions`,
@@ -323,7 +324,7 @@ export function ManagerFieldFormsModule() {
 
       setEditorOpen(false);
     } catch (error) {
-      setEditorMessage(error instanceof Error ? error.message : "Saha form kaydi basarisiz.");
+      setEditorMessage(error instanceof Error ? error.message : "Saha form kaydı başarısız.");
     } finally {
       setSaving(false);
     }
@@ -331,21 +332,21 @@ export function ManagerFieldFormsModule() {
 
   const formSignalCards = [
     {
-      label: "Template",
+      label: "Form",
       value: `${templates.length}`,
-      detail: "Kayitli saha formu",
+      detail: "Kayıtlı saha formu",
       icon: FileIcon
     },
     {
       label: "Aktif",
       value: `${templates.filter((template) => template.isActive).length}`,
-      detail: "Kullanimda olan form template'leri",
+      detail: "Kullanımdaki formlar",
       icon: CheckCircleIcon
     },
     {
       label: "Versiyon",
       value: `${detail?.versions.length ?? 0}`,
-      detail: "Secili formun schema gecmisi",
+      detail: "Seçili formun şema geçmişi",
       icon: TimelineIcon
     }
   ];
@@ -433,35 +434,12 @@ export function ManagerFieldFormsModule() {
             <div className="manager-overview-note">
               <strong>{selectedTemplate?.name ?? "Form secin"}</strong>
               <p>{detail?.description?.trim() || "Form aciklamasi bulunmuyor."}</p>
-              <p>{detail?.versions[0] ? `${detail.versions[0].schema.fields.length} alan tanimli.` : "Schema detayi bekleniyor."}</p>
+              <p>{detail?.versions[0] ? `${detail.versions[0].schema.fields.length} alan tanımlı.` : "Şema detayı bekleniyor."}</p>
             </div>
           </aside>
         </section>
 
-        {message ? <div className="alert">{message}</div> : null}
-
-        <section className="manager-stat-ribbon manager-stat-ribbon-compact manager-stat-ribbon-premium">
-          <article className="manager-stat-card">
-            <span>Template</span>
-            <strong>{loading ? "..." : templates.length}</strong>
-            <small>Kayitli saha formu</small>
-          </article>
-          <article className="manager-stat-card">
-            <span>Aktif</span>
-            <strong>{templates.filter((template) => template.isActive).length}</strong>
-            <small>Kullanimda olanlar</small>
-          </article>
-          <article className="manager-stat-card">
-            <span>Cevap</span>
-            <strong>{templates.reduce((sum, template) => sum + template.responseCount, 0)}</strong>
-            <small>Toplam response sayisi</small>
-          </article>
-          <article className="manager-stat-card">
-            <span>Secili form</span>
-            <strong>{selectedTemplate ? "Hazir" : "Yok"}</strong>
-            <small>{selectedTemplate?.name ?? "Listeden secin"}</small>
-          </article>
-        </section>
+        {message ? <AlertMessage message={message} /> : null}
 
         <div className="manager-panel-split">
           <section className="manager-surface-card">
@@ -470,13 +448,13 @@ export function ManagerFieldFormsModule() {
                 <span className="manager-section-kicker">Template listesi</span>
                 <h3 className="manager-section-title">Saha formlari</h3>
               </div>
-              <span className="manager-mini-chip">{templates.length} kayit</span>
+              <span className="manager-mini-chip">{templates.length} kayıt</span>
             </div>
 
             {loading ? (
-              <div className="empty">Saha form template listesi yukleniyor.</div>
+              <div className="empty">Saha form listesi yükleniyor.</div>
             ) : !templates.length ? (
-              <div className="empty">Henuz kayitli saha form template'i bulunmuyor.</div>
+              <div className="empty">Henüz kayıtlı saha formu bulunmuyor.</div>
             ) : (
               <div className="manager-directory-list">
                 {templates.map((template) => (
@@ -527,7 +505,7 @@ export function ManagerFieldFormsModule() {
             {!selectedTemplateId ? (
               <div className="empty">Detay gormek icin bir saha formu secin.</div>
             ) : detailLoading ? (
-              <div className="empty">Saha form detayi yukleniyor.</div>
+              <div className="empty">Saha form detayı yükleniyor.</div>
             ) : !detail ? (
               <div className="empty">Saha form detayi okunamadi.</div>
             ) : (
@@ -596,7 +574,7 @@ export function ManagerFieldFormsModule() {
         description="Template metadata ve schema alanlarini tek panelden yonetin."
       >
         <form className="stack" onSubmit={(event) => void handleSave(event)}>
-          {editorMessage ? <div className="alert">{editorMessage}</div> : null}
+          {editorMessage ? <AlertMessage message={editorMessage} /> : null}
 
           <ManagerDrawerSection
             eyebrow="Kimlik"

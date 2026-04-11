@@ -10,6 +10,7 @@ import {
 import { FormEvent, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch, fetchAuthorizedBlob } from "../lib/api";
 import { formatDisplayDateTime } from "../lib/date";
+import { AlertMessage } from "./alert-message";
 import { useAuth } from "./auth-provider";
 import { ManagerDrawer, ManagerDrawerSection } from "./manager-ui";
 import { useDialogBehavior } from "./dialog-behavior";
@@ -23,11 +24,19 @@ type ProjectEditorMode = "create" | "edit";
 type ProjectDraft = {
   customerId: string;
   name: string;
-  code: string;
   description: string;
   locationLabel: string;
   latitude: string;
   longitude: string;
+};
+
+type ProjectTimelineEntry = Omit<TimelineEntry, "entryType"> & {
+  entryType: TimelineEntry["entryType"] | "FIELD_FORM_RESPONSE";
+  formResponse?: {
+    templateName: string;
+    templateVersionNumber: number;
+    projectEntryId: string | null;
+  };
 };
 
 type CustomerDraft = {
@@ -38,7 +47,6 @@ type CustomerDraft = {
 const emptyProjectDraft: ProjectDraft = {
   customerId: "",
   name: "",
-  code: "",
   description: "",
   locationLabel: "",
   latitude: "",
@@ -50,22 +58,24 @@ const emptyCustomerDraft: CustomerDraft = {
   note: ""
 };
 
-function entryTypeLabel(value: TimelineEntry["entryType"]) {
+function entryTypeLabel(value: ProjectTimelineEntry["entryType"]) {
   switch (value) {
     case "MANAGER_NOTE":
-      return "Yonetici notu";
+      return "Yönetici notu";
     case "FIELD_NOTE":
       return "Saha notu";
     case "WORK_START":
-      return "Is basi";
+      return "İş başlangıcı";
     case "WORK_END":
-      return "Gun sonu";
+      return "Gün sonu";
     case "FILE_UPLOAD":
-      return "Dosya yukleme";
+      return "Dosya yükleme";
     case "IMAGE_UPLOAD":
-      return "Gorsel yukleme";
+      return "Görsel yükleme";
     case "LOCATION_EVENT":
-      return "Konum olayi";
+      return "Konum olayı";
+    case "FIELD_FORM_RESPONSE":
+      return "Form yanıtı";
     default:
       return value;
   }
@@ -88,7 +98,6 @@ function draftFromProject(project: ProjectSummary): ProjectDraft {
   return {
     customerId: project.customer?.id ?? "",
     name: project.name,
-    code: project.code ?? "",
     description: project.description ?? "",
     locationLabel: project.locationLabel ?? "",
     latitude: numberToInputValue(project.latitude),
@@ -106,7 +115,7 @@ export function ManagerProjectsModule() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedProject, setSelectedProject] = useState<ProjectSummary | null>(null);
   const [mainFiles, setMainFiles] = useState<MainFileItem[]>([]);
-  const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
+  const [timeline, setTimeline] = useState<ProjectTimelineEntry[]>([]);
   const [locationFeed, setLocationFeed] = useState<LocationFeedItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -172,6 +181,28 @@ export function ManagerProjectsModule() {
     [locationFeed]
   );
 
+  const noteEntries = useMemo(
+    () =>
+      timeline.filter(
+        (entry) =>
+          entry.entryType === "MANAGER_NOTE" ||
+          entry.entryType === "FIELD_NOTE" ||
+          Boolean(entry.note?.trim())
+      ),
+    [timeline]
+  );
+
+  const movementEntries = useMemo(
+    () =>
+      timeline.filter(
+        (entry) =>
+          entry.entryType !== "MANAGER_NOTE" &&
+          entry.entryType !== "FIELD_NOTE" &&
+          !entry.note?.trim()
+      ),
+    [timeline]
+  );
+
   useEffect(() => {
     return () => {
       if (previewObjectUrlRef.current) {
@@ -194,7 +225,7 @@ export function ManagerProjectsModule() {
     setLoading(true);
     void Promise.all([refreshProjects(token), refreshCustomers(token)])
       .catch((error) => {
-        setMessage(error instanceof Error ? error.message : "Proje listesi yuklenemedi.");
+        setMessage(error instanceof Error ? error.message : "Proje listesi yüklenemedi.");
       })
       .finally(() => setLoading(false));
   }, [deferredQuery, statusFilter, token]);
@@ -235,7 +266,7 @@ export function ManagerProjectsModule() {
       const [projectData, fileData, timelineData, locationData] = await Promise.all([
         apiFetch<ProjectSummary>(`/projects/${projectId}`, {}, currentToken),
         apiFetch<MainFileItem[]>(`/projects/${projectId}/main-files`, {}, currentToken),
-        apiFetch<TimelineEntry[]>(`/projects/${projectId}/timeline`, {}, currentToken),
+        apiFetch<ProjectTimelineEntry[]>(`/projects/${projectId}/timeline`, {}, currentToken),
         apiFetch<LocationFeedItem[]>(`/projects/${projectId}/location-feed`, {}, currentToken).catch(
           () => []
         )
@@ -292,7 +323,6 @@ export function ManagerProjectsModule() {
             body: JSON.stringify({
               customerId: projectDraft.customerId || undefined,
               name: projectDraft.name.trim(),
-              code: projectDraft.code.trim() || undefined,
               description: projectDraft.description.trim() || undefined,
               locationLabel: projectDraft.locationLabel.trim() || undefined,
               latitude: parseNumberInput(projectDraft.latitude, undefined),
@@ -307,7 +337,7 @@ export function ManagerProjectsModule() {
           await apiFetch(`/projects/${created.id}/main-files`, { method: "POST", body: form }, token);
         }
         setMessage(
-          createUploadFiles.length ? "Proje ve ilk dosyalar olusturuldu." : "Proje olusturuldu."
+          createUploadFiles.length ? "Proje ve ilk dosyalar oluşturuldu." : "Proje oluşturuldu."
         );
         setCreateUploadFiles([]);
         setProjectEditorOpen(false);
@@ -321,7 +351,6 @@ export function ManagerProjectsModule() {
             body: JSON.stringify({
               customerId: projectDraft.customerId || null,
               name: projectDraft.name.trim(),
-              code: projectDraft.code.trim() || null,
               description: projectDraft.description.trim() || null,
               locationLabel: projectDraft.locationLabel.trim() || null,
               latitude: parseNumberInput(projectDraft.latitude, null),
@@ -330,7 +359,7 @@ export function ManagerProjectsModule() {
           },
           token
         );
-        setMessage("Proje guncellendi.");
+        setMessage("Proje güncellendi.");
         setProjectEditorOpen(false);
         await Promise.all([
           refreshProjects(token),
@@ -350,7 +379,7 @@ export function ManagerProjectsModule() {
       return;
     }
     if (!customerDraft.name.trim()) {
-      setMessage("Cari adi zorunludur.");
+      setMessage("Cari adı zorunludur.");
       return;
     }
     setCreatingCustomer(true);
@@ -372,9 +401,9 @@ export function ManagerProjectsModule() {
       setProjectDraft((current) =>
         current.customerId ? current : { ...current, customerId: created.id }
       );
-      setMessage("Cari olusturuldu.");
+      setMessage("Cari oluşturuldu.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Cari olusturulamadi.");
+      setMessage(error instanceof Error ? error.message : "Cari oluşturulamadı.");
     } finally {
       setCreatingCustomer(false);
     }
@@ -393,13 +422,13 @@ export function ManagerProjectsModule() {
         },
         token
       );
-      setMessage(focusProject.isArchived ? "Proje aktif edildi." : "Proje arsivlendi.");
+      setMessage(focusProject.isArchived ? "Proje aktif edildi." : "Proje arşivlendi.");
       await Promise.all([
         refreshProjects(token),
         refreshProjectDetail(token, focusProject.id)
       ]);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Arsiv durumu guncellenemedi.");
+      setMessage(error instanceof Error ? error.message : "Arşiv durumu güncellenemedi.");
     }
   }
 
@@ -426,7 +455,7 @@ export function ManagerProjectsModule() {
       return;
     }
     if (!uploadFiles.length) {
-      setMessage("Yukleme icin dosya secin.");
+      setMessage("Yükleme için dosya seçin.");
       return;
     }
     setUploadingFiles(true);
@@ -435,11 +464,11 @@ export function ManagerProjectsModule() {
       uploadFiles.forEach((file) => form.append("files", file));
       await apiFetch(`/projects/${focusProject.id}/main-files`, { method: "POST", body: form }, token);
       setUploadFiles([]);
-      setMessage("Main dosyalar yuklendi.");
+      setMessage("Ana dosyalar yüklendi.");
       await refreshProjectDetail(token, focusProject.id);
       await refreshProjects(token);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Main dosya yuklenemedi.");
+      setMessage(error instanceof Error ? error.message : "Ana dosya yüklenemedi.");
     } finally {
       setUploadingFiles(false);
     }
@@ -449,16 +478,16 @@ export function ManagerProjectsModule() {
     if (!token || !focusProject) {
       return;
     }
-    if (!window.confirm("Secilen main dosya kaldirilsin mi?")) {
+    if (!window.confirm("Seçilen ana dosya kaldırılsın mı?")) {
       return;
     }
     try {
       await apiFetch(`/projects/${focusProject.id}/main-files/${fileId}`, { method: "DELETE" }, token);
-      setMessage("Main dosya kaldirildi.");
+      setMessage("Ana dosya kaldırıldı.");
       await refreshProjectDetail(token, focusProject.id);
       await refreshProjects(token);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Main dosya kaldirilamadi.");
+      setMessage(error instanceof Error ? error.message : "Ana dosya kaldırılamadı.");
     }
   }
 
@@ -504,24 +533,26 @@ export function ManagerProjectsModule() {
     focusProject ?? projects.find((project) => project.id === selectedProjectId) ?? projects[0] ?? null;
   const projectSignalCards = [
     {
-      label: "Aktif klasor",
+      label: "Aktif klasör",
       value: `${activeProjects}`,
-      detail: "Sahada kullanilan canli proje kayitlari",
+      detail: "Sahada kullanılan canlı proje kayıtları",
       icon: FolderIcon
     },
     {
       label: "Konumlu proje",
       value: `${mappedProjects}`,
-      detail: "Harita ve rota akisina baglanabilen klasorler",
+      detail: "Harita ve rota akışına bağlanabilen klasörler",
       icon: MapPinIcon
     },
     {
-      label: "Dosya yogunlugu",
+      label: "Dosya yoğunluğu",
       value: `${projects.reduce((sum, project) => sum + project.mainFileCount, 0)}`,
-      detail: "Main dosya havuzu secili filtre icin hesaplandi",
+      detail: "Ana dosya havuzu seçili filtre için hesaplandı",
       icon: FileIcon
     }
   ];
+  const statusFilterLabel =
+    statusFilter === "active" ? "Aktif" : statusFilter === "archived" ? "Arşiv" : "Tümü";
 
   return (
     <>
@@ -530,9 +561,9 @@ export function ManagerProjectsModule() {
           <div className="manager-command-surface manager-overview-poster">
             <div className="manager-command-copy">
               <span className="manager-command-kicker">Projeler</span>
-              <h2 className="manager-block-title">Kayit, konum ve dosya akislarini tek workspace'te yonet</h2>
+              <h2 className="manager-block-title">Kayıt, konum ve dosya akışını tek alanda yönetin</h2>
               <p className="manager-block-copy manager-block-copy-visible">
-                Cari iliskisi, dosya yogunlugu ve saha izi ayni klasor yapisi uzerinden okunuyor.
+                Cari ilişkisi, dosya yoğunluğu ve saha izi aynı klasör yapısından okunur.
               </p>
             </div>
 
@@ -550,8 +581,8 @@ export function ManagerProjectsModule() {
                   value={statusFilter}
                 >
                   <option value="active">Aktif</option>
-                  <option value="archived">Arsiv</option>
-                  <option value="all">Tum projeler</option>
+                  <option value="archived">Arşiv</option>
+                  <option value="all">Tüm projeler</option>
                 </select>
               </div>
 
@@ -579,23 +610,23 @@ export function ManagerProjectsModule() {
           <aside className="manager-surface-card manager-overview-sidecar">
             <div className="manager-section-head compact">
               <div>
-                <span className="manager-section-kicker">Secili odak</span>
-                <h3 className="manager-section-title">Proje sinyali</h3>
+                <span className="manager-section-kicker">Seçili odak</span>
+                <h3 className="manager-section-title">Proje özeti</h3>
               </div>
-              <span className="manager-mini-chip">{statusFilter}</span>
+              <span className="manager-mini-chip">{statusFilterLabel}</span>
             </div>
 
             <div className="manager-overview-note">
-              <strong>{listPreviewProject?.name ?? "Proje secilmedi"}</strong>
+              <strong>{listPreviewProject?.name ?? "Proje seçilmedi"}</strong>
               <p>
                 {listPreviewProject
-                  ? listPreviewProject.customer?.name ?? "Cari iliskisi bekleniyor"
+                  ? listPreviewProject.customer?.name ?? "Cari bağlantısı yok"
                   : "Filtre sonucu proje bulunmuyor."}
               </p>
               <p>
                 {listPreviewProject
-                  ? listPreviewProject.locationLabel ?? "Konum etiketi henuz tanimli degil."
-                  : "Yeni proje olusturarak klasor akisina baslayin."}
+                  ? listPreviewProject.locationLabel ?? "Konum etiketi yok"
+                  : "Yeni proje oluşturarak başlayın."}
               </p>
             </div>
 
@@ -605,9 +636,9 @@ export function ManagerProjectsModule() {
                   <FileIcon />
                 </span>
                 <div>
-                  <strong>Main dosya</strong>
+                  <strong>Ana dosya</strong>
                   <b>{listPreviewProject?.mainFileCount ?? 0}</b>
-                  <p>Secili klasorun ana dosya sayisi</p>
+                  <p>Seçili klasörün ana dosya sayısı</p>
                 </div>
               </article>
               <article className="manager-overview-status">
@@ -615,16 +646,16 @@ export function ManagerProjectsModule() {
                   <TimelineIcon />
                 </span>
                 <div>
-                  <strong>Timeline</strong>
+                  <strong>Hareket</strong>
                   <b>{listPreviewProject?.timelineEntryCount ?? 0}</b>
-                  <p>Kayda dusmus operasyon hareketi</p>
+                  <p>Kayda düşmüş operasyon hareketi</p>
                 </div>
               </article>
             </div>
 
             <div className="manager-overview-actions">
               <button className="button ghost" onClick={() => setCustomerDrawerOpen(true)} type="button">
-                Cari Ac
+                Cari Aç
               </button>
               <button className="button" onClick={() => openProjectEditor("create")} type="button">
                 Yeni Proje
@@ -633,40 +664,17 @@ export function ManagerProjectsModule() {
           </aside>
         </section>
 
-        {message ? <div className="alert">{message}</div> : null}
-
-        <section className="manager-stat-ribbon manager-stat-ribbon-compact manager-stat-ribbon-premium">
-          <article className="manager-stat-card">
-            <span>Liste sonucu</span>
-            <strong>{loading ? "..." : projects.length}</strong>
-            <small>Mevcut filtre gorunumu</small>
-          </article>
-          <article className="manager-stat-card">
-            <span>Aktif</span>
-            <strong>{loading ? "..." : activeProjects}</strong>
-            <small>Operasyonda kullanilan proje</small>
-          </article>
-          <article className="manager-stat-card">
-            <span>Arsiv</span>
-            <strong>{loading ? "..." : archivedProjects}</strong>
-            <small>Kapatilmis veya bekleyen klasor</small>
-          </article>
-          <article className="manager-stat-card">
-            <span>Konumlu</span>
-            <strong>{loading ? "..." : mappedProjects}</strong>
-            <small>Haritada acilabilen proje</small>
-          </article>
-        </section>
+        {message ? <AlertMessage message={message} /> : null}
 
         <section className="manager-panel-split">
           <section className="manager-surface-card">
             <div className="manager-section-head compact">
               <div>
-                <span className="manager-section-kicker">Tum proje klasorleri</span>
-                <h3 className="manager-section-title">Calisma listesi</h3>
+                <span className="manager-section-kicker">Tüm projeler</span>
+                <h3 className="manager-section-title">Çalışma listesi</h3>
               </div>
               <span className="manager-mini-chip">
-                {loading ? "Yukleniyor..." : `${projects.length} proje`}
+                {loading ? "Yükleniyor..." : `${projects.length} proje`}
               </span>
             </div>
 
@@ -683,21 +691,21 @@ export function ManagerProjectsModule() {
                     <div className="manager-entity-headline">
                       <div className="manager-table-primary">
                         <strong>{project.name}</strong>
-                        <span>{project.code ?? "Kod tanimli degil"}</span>
+                        <span>{project.code ?? "Kod henüz oluşmadı"}</span>
                       </div>
                       <div className="manager-directory-meta">
                         <span className={`manager-inline-badge ${project.isArchived ? "is-muted" : "is-positive"}`}>
-                          {project.isArchived ? "Arsiv" : "Aktif"}
+                          {project.isArchived ? "Arşiv" : "Aktif"}
                         </span>
                         <span className={`manager-inline-badge ${project.locationLabel ? "is-positive" : "is-warn"}`}>
-                          {project.locationLabel ? "Konum hazir" : "Konum eksik"}
+                          {project.locationLabel ? "Konum hazır" : "Konum eksik"}
                         </span>
                       </div>
                     </div>
 
                     <div className="manager-entity-side">
                       <p className="muted">
-                        {project.customer?.name ?? "Cari iliskisi yok"}
+                        {project.customer?.name ?? "Cari bağlantısı yok"}
                         {project.locationLabel ? ` / ${project.locationLabel}` : ""}
                       </p>
                       <div className="manager-directory-meta">
@@ -708,16 +716,6 @@ export function ManagerProjectsModule() {
                     </div>
 
                     <div className="manager-entity-actions">
-                      <button
-                        className="button ghost"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setSelectedProjectId(project.id);
-                        }}
-                        type="button"
-                      >
-                        Sec
-                      </button>
                       <button
                         className="button"
                         onClick={(event) => {
@@ -738,51 +736,51 @@ export function ManagerProjectsModule() {
           <aside className="manager-surface-card manager-focus-panel">
             <div className="manager-section-head compact">
               <div>
-                <span className="manager-section-kicker">Secili klasor</span>
-                <h3 className="manager-section-title">Hizli ozet</h3>
+                <span className="manager-section-kicker">Seçili klasör</span>
+                <h3 className="manager-section-title">Hızlı özet</h3>
               </div>
               <span className="manager-mini-chip">{listPreviewProject?.customer?.name ?? "Cari yok"}</span>
             </div>
 
             {!listPreviewProject ? (
-              <div className="empty">Liste secimi olmadigi icin onizleme gosterilemiyor.</div>
+              <div className="empty">Seçili proje yok.</div>
             ) : (
               <div className="manager-focus-stack">
                 <div className="manager-focus-lead">
                   <strong>{listPreviewProject.name}</strong>
                   <p className="muted">
-                    {listPreviewProject.description?.trim() || "Bu klasor icin aciklama henuz girilmemis."}
+                    {listPreviewProject.description?.trim() || "Açıklama yok"}
                   </p>
                 </div>
 
                 <div className="manager-sheet-grid">
                   <div className="manager-sheet-card">
                     <span>Durum</span>
-                    <strong>{listPreviewProject.isArchived ? "Arsiv" : "Aktif"}</strong>
+                    <strong>{listPreviewProject.isArchived ? "Arşiv" : "Aktif"}</strong>
                   </div>
                   <div className="manager-sheet-card">
                     <span>Konum</span>
-                    <strong>{listPreviewProject.locationLabel ? "Hazir" : "Eksik"}</strong>
+                    <strong>{listPreviewProject.locationLabel ? "Hazır" : "Eksik"}</strong>
                   </div>
                   <div className="manager-sheet-card">
-                    <span>Main dosya</span>
+                    <span>Ana dosya</span>
                     <strong>{listPreviewProject.mainFileCount}</strong>
                   </div>
                   <div className="manager-sheet-card">
-                    <span>Timeline</span>
+                    <span>Hareket</span>
                     <strong>{listPreviewProject.timelineEntryCount ?? 0}</strong>
                   </div>
                 </div>
 
                 <div className="manager-overview-note">
-                  <strong>Son guncelleme</strong>
+                  <strong>Son güncelleme</strong>
                   <p>{formatDisplayDateTime(listPreviewProject.updatedAt)}</p>
-                  <p>{listPreviewProject.locationLabel ?? "Harita ve rota akisina baglanmasi icin konum girin."}</p>
+                  <p>{listPreviewProject.locationLabel ?? "Konum girilmedi"}</p>
                 </div>
 
                 <div className="manager-overview-actions">
                   <button className="button" onClick={() => void openProjectDrawer(listPreviewProject.id)} type="button">
-                    Cekmeceyi Ac
+                    Detayı Aç
                   </button>
                   <button
                     className="button ghost"
@@ -793,7 +791,7 @@ export function ManagerProjectsModule() {
                     }}
                     type="button"
                   >
-                    Duzenle
+                    Düzenle
                   </button>
                 </div>
               </div>
@@ -805,23 +803,18 @@ export function ManagerProjectsModule() {
       <ManagerDrawer
         onClose={() => setProjectDrawerOpen(false)}
         open={projectDrawerOpen && Boolean(focusProject)}
-        title={focusProject?.name ?? "Proje detayi"}
-        description="Proje kaydinin ozet bilgilerini, harita baglamini, aktivite akislarini ve ana dosyalarini birlikte inceleyin."
+        title={focusProject?.name ?? "Proje detayı"}
         badge={
           focusProject ? (
             <span className={`manager-inline-badge ${focusProject.isArchived ? "is-muted" : "is-positive"}`}>
-              {focusProject.isArchived ? "Arsiv proje" : "Aktif proje"}
+              {focusProject.isArchived ? "Arşiv proje" : "Aktif proje"}
             </span>
           ) : null
         }
       >
         {focusProject ? (
           <div className="stack">
-            <ManagerDrawerSection
-              eyebrow="Ozet"
-              title="Kayit bilgisi"
-              description="Mevcut proje kimligi, cari baglami ve ana aciklama alanlari."
-            >
+            <ManagerDrawerSection eyebrow="Özet" title="Kayıt bilgisi">
               <div className="manager-sheet-grid">
                 <div className="manager-sheet-card">
                   <span>Cari</span>
@@ -833,20 +826,16 @@ export function ManagerProjectsModule() {
                 </div>
                 <div className="manager-sheet-card manager-sheet-card-wide">
                   <span>Konum</span>
-                  <strong>{focusProject.locationLabel ?? "Konum etiketi tanimli degil"}</strong>
+                  <strong>{focusProject.locationLabel ?? "Konum etiketi yok"}</strong>
                 </div>
                 <div className="manager-sheet-card manager-sheet-card-wide">
-                  <span>Aciklama</span>
-                  <strong>{focusProject.description ?? "Aciklama girilmemis."}</strong>
+                  <span>Açıklama</span>
+                  <strong>{focusProject.description ?? "-"}</strong>
                 </div>
               </div>
             </ManagerDrawerSection>
 
-            <ManagerDrawerSection
-              eyebrow="Konum"
-              title="Harita ve saha izi"
-              description="Proje markeri ile son saha hareketleri ayni harita uzerinde gosterilir."
-            >
+            <ManagerDrawerSection eyebrow="Konum" title="Harita">
               {projectMarkers.length ? (
                 <TrackingMap
                   fieldMarkers={fieldMarkers}
@@ -854,17 +843,16 @@ export function ManagerProjectsModule() {
                   projectMarkers={projectMarkers}
                 />
               ) : (
-                <div className="empty">Proje koordinati tanimli degil.</div>
+                <div className="empty">Proje koordinatı tanımlı değil.</div>
               )}
             </ManagerDrawerSection>
 
             <ManagerDrawerSection
-              eyebrow="Aktivite"
-              title="Proje notlari ve gecmis hareket"
-              description="Ilk 20 timeline kaydi okunabilir bloklar halinde gosterilir."
-              meta={<span className="manager-mini-chip">{detailLoading ? "Yukleniyor..." : timeline.length}</span>}
+              eyebrow="Notlar"
+              title="Proje notları"
+              meta={<span className="manager-mini-chip">{detailLoading ? "Yükleniyor..." : noteEntries.length}</span>}
             >
-              {!timeline.length ? (
+              {!noteEntries.length ? (
                 <div className="empty">Proje notu bulunmuyor.</div>
               ) : (
                 <div className="manager-table-wrap">
@@ -872,19 +860,60 @@ export function ManagerProjectsModule() {
                     <thead>
                       <tr>
                         <th>Zaman</th>
-                        <th>Kullanici</th>
-                        <th>Tur</th>
+                        <th>Kullanıcı</th>
+                        <th>Tür</th>
                         <th>Not</th>
-                        <th>Dosya</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {timeline.slice(0, 20).map((entry) => (
+                      {noteEntries.slice(0, 20).map((entry) => (
                         <tr key={entry.id}>
                           <td>{formatDisplayDateTime(entry.createdAt)}</td>
                           <td>{entry.actor.displayName}</td>
                           <td>{entryTypeLabel(entry.entryType)}</td>
                           <td>{entry.note?.trim() || "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </ManagerDrawerSection>
+
+            <ManagerDrawerSection
+              eyebrow="Hareketler"
+              title="Proje hareketleri"
+              meta={
+                <span className="manager-mini-chip">
+                  {detailLoading ? "Yükleniyor..." : movementEntries.length}
+                </span>
+              }
+            >
+              {!movementEntries.length ? (
+                <div className="empty">Proje hareketi bulunmuyor.</div>
+              ) : (
+                <div className="manager-table-wrap">
+                  <table className="manager-table">
+                    <thead>
+                      <tr>
+                        <th>Zaman</th>
+                        <th>Kullanıcı</th>
+                        <th>Tür</th>
+                        <th>Detay</th>
+                        <th>Dosya</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {movementEntries.slice(0, 20).map((entry) => (
+                        <tr key={entry.id}>
+                          <td>{formatDisplayDateTime(entry.createdAt)}</td>
+                          <td>{entry.actor.displayName}</td>
+                          <td>{entryTypeLabel(entry.entryType)}</td>
+                          <td>
+                            {entry.entryType === "FIELD_FORM_RESPONSE"
+                              ? `${entry.formResponse?.templateName ?? "Form"} v${entry.formResponse?.templateVersionNumber ?? 1}`
+                              : entry.note?.trim() || "-"}
+                          </td>
                           <td>{entry.files.length}</td>
                         </tr>
                       ))}
@@ -896,8 +925,7 @@ export function ManagerProjectsModule() {
 
             <ManagerDrawerSection
               eyebrow="Dosyalar"
-              title="Ana dosya yonetimi"
-              description="Yukleme, onizleme, indirme ve kaldirma akislari mevcut endpointlerle korunur."
+              title="Ana dosyalar"
               meta={<span className="manager-mini-chip">{mainFiles.length} dosya</span>}
             >
               <form className="stack" onSubmit={uploadMainFiles}>
@@ -908,18 +936,18 @@ export function ManagerProjectsModule() {
                   type="file"
                 />
                 <button className="button" disabled={uploadingFiles} type="submit">
-                  {uploadingFiles ? "Yukleniyor..." : "Dosya Yukle"}
+                  {uploadingFiles ? "Yükleniyor..." : "Dosya Yükle"}
                 </button>
               </form>
               {!mainFiles.length ? (
-                <div className="empty">Main dosya yok.</div>
+                <div className="empty">Ana dosya yok.</div>
               ) : (
                 <div className="file-list">
                   {mainFiles.map((file) => (
                     <div className="file-row" key={file.id}>
                       <div>
                         <strong>{file.title}</strong>
-                        <div className="tiny muted">{file.versionCount} surum</div>
+                        <div className="tiny muted">{file.versionCount} sürüm</div>
                       </div>
                       <div className="toolbar-tight">
                         {file.latestVersion.inlineUrl ? (
@@ -928,7 +956,7 @@ export function ManagerProjectsModule() {
                             onClick={() => void openProtectedFile(file.latestVersion.inlineUrl!, "preview")}
                             type="button"
                           >
-                            Onizle
+                            Önizle
                           </button>
                         ) : null}
                         <button
@@ -936,14 +964,14 @@ export function ManagerProjectsModule() {
                           onClick={() => void openProtectedFile(file.latestVersion.downloadUrl, "download")}
                           type="button"
                         >
-                          Indir
+                          İndir
                         </button>
                         <button
                           className="button danger"
                           onClick={() => void removeMainFile(file.id)}
                           type="button"
                         >
-                          Kaldir
+                          Kaldır
                         </button>
                       </div>
                     </div>
@@ -952,18 +980,13 @@ export function ManagerProjectsModule() {
               )}
             </ManagerDrawerSection>
 
-            <ManagerDrawerSection
-              eyebrow="Aksiyonlar"
-              title="Kayit islemleri"
-              description="Duzenleme, arsivleme ve kaldirma akislari ayni backend davranisiyla calisir."
-              tone="danger"
-            >
+            <ManagerDrawerSection eyebrow="Aksiyonlar" title="Kayıt işlemleri" tone="danger">
               <div className="toolbar">
                 <button className="button ghost" onClick={() => openProjectEditor("edit")} type="button">
-                  Duzenle
+                  Düzenle
                 </button>
                 <button className="button ghost" onClick={toggleArchive} type="button">
-                  {focusProject.isArchived ? "Aktife Al" : "Arsivle"}
+                  {focusProject.isArchived ? "Aktife Al" : "Arşivle"}
                 </button>
                 <button className="button danger-minimal" onClick={deleteProject} type="button">
                   Sil
@@ -977,43 +1000,24 @@ export function ManagerProjectsModule() {
       <ManagerDrawer
         onClose={() => setProjectEditorOpen(false)}
         open={projectEditorOpen}
-        title={projectEditorMode === "create" ? "Yeni Proje" : "Proje Duzenle"}
-        description={
-          projectEditorMode === "create"
-            ? "Yeni proje kaydi acin. Ilk dosyalar yalnizca olusturma adiminda eklenir."
-            : "Mevcut proje kaydinin alanlarini guncelleyin."
-        }
+        title={projectEditorMode === "create" ? "Yeni Proje" : "Projeyi Düzenle"}
         badge={
           <span className="manager-inline-badge is-info">
-            {projectEditorMode === "create" ? "Olusturma modu" : "Duzenleme modu"}
+            {projectEditorMode === "create" ? "Oluşturma modu" : "Düzenleme modu"}
           </span>
         }
       >
         <form className="stack" onSubmit={saveProject}>
-          <ManagerDrawerSection
-            eyebrow="Kimlik"
-            title="Kayit bilgisi"
-            description="Projenin temel kimligi ve cari iliskisi bu bolumde tutulur."
-          >
-            <div className="split two">
-              <input
-                className="input"
-                onChange={(event) =>
-                  setProjectDraft((current) => ({ ...current, name: event.target.value }))
-                }
-                placeholder="Proje adi"
-                required
-                value={projectDraft.name}
-              />
-              <input
-                className="input"
-                onChange={(event) =>
-                  setProjectDraft((current) => ({ ...current, code: event.target.value }))
-                }
-                placeholder="Proje kodu"
-                value={projectDraft.code}
-              />
-            </div>
+          <ManagerDrawerSection eyebrow="Kimlik" title="Kayıt bilgisi">
+            <input
+              className="input"
+              onChange={(event) =>
+                setProjectDraft((current) => ({ ...current, name: event.target.value }))
+              }
+              placeholder="Proje adı"
+              required
+              value={projectDraft.name}
+            />
             <select
               className="select"
               onChange={(event) =>
@@ -1021,7 +1025,7 @@ export function ManagerProjectsModule() {
               }
               value={projectDraft.customerId}
             >
-              <option value="">Cari baglama (opsiyonel)</option>
+              <option value="">Cari bağla (isteğe bağlı)</option>
               {customers.map((customer) => (
                 <option key={customer.id} value={customer.id}>
                   {customer.name}
@@ -1030,26 +1034,18 @@ export function ManagerProjectsModule() {
             </select>
           </ManagerDrawerSection>
 
-          <ManagerDrawerSection
-            eyebrow="Aciklama"
-            title="Kayit notu"
-            description="Projenin ana aciklamasi saha tarafinda da referans olarak gorunur."
-          >
+          <ManagerDrawerSection eyebrow="Açıklama" title="Kısa not">
             <textarea
               className="textarea"
               onChange={(event) =>
                 setProjectDraft((current) => ({ ...current, description: event.target.value }))
               }
-              placeholder="Aciklama"
+              placeholder="Açıklama"
               value={projectDraft.description}
             />
           </ManagerDrawerSection>
 
-          <ManagerDrawerSection
-            eyebrow="Konum"
-            title="Konum ve harita secimi"
-            description="Etiket ve koordinatlar birlikte duzenlenir; haritaya tiklayarak secim yapabilirsiniz."
-          >
+          <ManagerDrawerSection eyebrow="Konum" title="Konum ve harita seçimi">
             <input
               className="input"
               onChange={(event) =>
@@ -1096,11 +1092,7 @@ export function ManagerProjectsModule() {
           </ManagerDrawerSection>
 
           {projectEditorMode === "create" ? (
-            <ManagerDrawerSection
-              eyebrow="Ilk dosyalar"
-              title="Acilis paketini ekle"
-              description="Main file yukleme akisi create davranisi ile ayni sekilde korunur."
-            >
+            <ManagerDrawerSection eyebrow="İlk dosyalar" title="Açılış paketini ekle">
               <input
                 className="input"
                 multiple
@@ -1118,21 +1110,16 @@ export function ManagerProjectsModule() {
       <ManagerDrawer
         onClose={() => setCustomerDrawerOpen(false)}
         open={customerDrawerOpen}
-        title="Cari Ac"
-        description="Proje formundan ayrilmadan yeni cari kaydi acabilirsiniz."
+        title="Cari Aç"
       >
         <form className="stack" onSubmit={createCustomer}>
-          <ManagerDrawerSection
-            eyebrow="Cari"
-            title="Yeni cari bilgisi"
-            description="Olusturulan cari kaydi proje formunda secili hale gelebilir."
-          >
+          <ManagerDrawerSection eyebrow="Cari" title="Yeni cari bilgisi">
             <input
               className="input"
               onChange={(event) =>
                 setCustomerDraft((current) => ({ ...current, name: event.target.value }))
               }
-              placeholder="Cari adi"
+              placeholder="Cari adı"
               required
               value={customerDraft.name}
             />
@@ -1157,7 +1144,7 @@ export function ManagerProjectsModule() {
           <div className="field-v3-preview-panel glass" ref={previewPanelRef} tabIndex={-1}>
             <div className="field-v3-preview-header">
               <div>
-                <div className="field-v3-kicker">Dosya onizleme</div>
+                <div className="field-v3-kicker">Dosya önizleme</div>
                 <h2>{previewName}</h2>
               </div>
               <button className="button ghost" ref={previewCloseRef} type="button" onClick={closePreview}>
@@ -1169,7 +1156,7 @@ export function ManagerProjectsModule() {
               <iframe className="field-v3-preview-frame" src={previewUrl} title={previewName} />
             ) : (
               <img
-                alt={previewName ?? "preview"}
+                alt={previewName ?? "önizleme"}
                 className="field-v3-preview-frame"
                 src={previewUrl}
                 style={{ objectFit: "contain" }}

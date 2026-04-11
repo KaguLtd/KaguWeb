@@ -10,6 +10,7 @@ import {
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { apiFetch, isAbortError } from "../lib/api";
 import { formatDisplayDateTime } from "../lib/date";
+import { AlertMessage } from "./alert-message";
 import { useAuth } from "./auth-provider";
 import { ManagerDrawer, ManagerDrawerSection } from "./manager-ui";
 import { TrackingMap } from "./tracking-map";
@@ -68,7 +69,7 @@ export function ManagerTrackingModule() {
     const sessionRows = (overview?.activeSessions ?? []).map((session) => ({
       id: `session-${session.assignmentId}`,
       tone: "session" as const,
-      type: "Canli Oturum",
+      type: "Canlı oturum",
       actor: session.user.displayName,
       subject: session.project.name,
       detail: "Aktif saha oturumu",
@@ -77,7 +78,7 @@ export function ManagerTrackingModule() {
     const campaignRows = campaigns.map((campaign) => ({
       id: `campaign-${campaign.id}`,
       tone: campaign.type === "DAILY_REMINDER" ? ("reminder" as const) : ("campaign" as const),
-      type: campaign.type === "DAILY_REMINDER" ? "Gunluk Hatirlatici" : "Manuel Bildirim",
+      type: campaign.type === "DAILY_REMINDER" ? "Günlük hatırlatıcı" : "Manuel bildirim",
       actor: campaign.sender.displayName,
       subject: campaign.title,
       detail: campaign.message,
@@ -87,11 +88,12 @@ export function ManagerTrackingModule() {
       right.createdAt.localeCompare(left.createdAt)
     );
   }, [campaigns, overview?.activeSessions]);
-  const selectedProjectLabel = projects.find((project) => project.id === selectedProjectId)?.name ?? "Tum projeler";
-  const selectedUserLabel = fieldUsers.find((user) => user.id === selectedUserId)?.displayName ?? "Tum saha personeli";
+  const selectedProjectLabel = projects.find((project) => project.id === selectedProjectId)?.name ?? "Tüm projeler";
+  const selectedUserLabel =
+    fieldUsers.find((user) => user.id === selectedUserId)?.displayName ?? "Tüm saha personeli";
   const trackingSignalCards = [
     {
-      label: "Proje marker",
+      label: "Proje işareti",
       value: `${overview?.projectLocations.length ?? 0}`,
       detail: selectedProjectLabel,
       icon: MapIcon
@@ -105,7 +107,7 @@ export function ManagerTrackingModule() {
     {
       label: "Kampanya",
       value: `${campaigns.length}`,
-      detail: "Kayitli bildirim akis sayisi",
+      detail: "Kayıtlı bildirim akış sayısı",
       icon: BellIcon
     }
   ];
@@ -121,7 +123,7 @@ export function ManagerTrackingModule() {
       refreshPushConfig(token, controller.signal)
     ]).catch((error) => {
       if (!isAbortError(error)) {
-        setMessage(error instanceof Error ? error.message : "Takip lookup verisi yuklenemedi.");
+        setMessage(error instanceof Error ? error.message : "Takip yardımcı verileri yüklenemedi.");
       }
     });
     return () => controller.abort();
@@ -134,7 +136,7 @@ export function ManagerTrackingModule() {
     const controller = new AbortController();
     void refreshTracking(token, controller.signal).catch((error) => {
       if (!isAbortError(error)) {
-        setMessage(error instanceof Error ? error.message : "Takip verisi yuklenemedi.");
+        setMessage(error instanceof Error ? error.message : "Takip verisi yüklenemedi.");
       }
     });
     return () => controller.abort();
@@ -213,9 +215,9 @@ export function ManagerTrackingModule() {
       setManualDraft({ title: "", message: "", userIds: [] });
       await refreshCampaigns(token);
       setNotifyDrawerOpen(false);
-      setMessage("Bildirim kampanyasi kaydedildi.");
+      setMessage("Bildirim kampanyası kaydedildi.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Bildirim gonderilemedi.");
+      setMessage(error instanceof Error ? error.message : "Bildirim gönderilemedi.");
     }
   }
 
@@ -231,9 +233,9 @@ export function ManagerTrackingModule() {
       );
       await refreshCampaigns(token);
       setNotifyDrawerOpen(false);
-      setMessage("Gunluk hatirlatici gonderildi.");
+      setMessage("Günlük hatırlatıcı gönderildi.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Hatirlatici gonderilemedi.");
+      setMessage(error instanceof Error ? error.message : "Hatırlatıcı gönderilemedi.");
     }
   }
 
@@ -244,9 +246,9 @@ export function ManagerTrackingModule() {
           <div className="manager-command-surface manager-overview-poster">
             <div className="manager-command-copy">
               <span className="manager-command-kicker">Takip</span>
-              <h2 className="manager-block-title">Harita, konum izi ve bildirim akislarini ayni takip workspace'inde izleyin</h2>
+              <h2 className="manager-block-title">Haritayı, konum izini ve bildirim akışını tek ekranda izleyin</h2>
               <p className="manager-block-copy manager-block-copy-visible">
-                Secili tarih, proje ve saha filtresiyle harita ile operasyon feed'i ayni ritimde yenileniyor.
+                Seçili tarih, proje ve saha filtresiyle harita ve akış birlikte yenilenir.
               </p>
             </div>
 
@@ -263,7 +265,7 @@ export function ManagerTrackingModule() {
                   onChange={(event) => setSelectedProjectId(event.target.value)}
                   value={selectedProjectId}
                 >
-                  <option value="">Tum projeler</option>
+                  <option value="">Tüm projeler</option>
                   {projects.map((project) => (
                     <option key={project.id} value={project.id}>
                       {project.name}
@@ -275,7 +277,7 @@ export function ManagerTrackingModule() {
                   onChange={(event) => setSelectedUserId(event.target.value)}
                   value={selectedUserId}
                 >
-                  <option value="">Tum saha personeli</option>
+                  <option value="">Tüm saha personeli</option>
                   {fieldUsers.map((user) => (
                     <option key={user.id} value={user.id}>
                       {user.displayName}
@@ -308,8 +310,8 @@ export function ManagerTrackingModule() {
           <aside className="manager-surface-card manager-overview-sidecar">
             <div className="manager-section-head compact">
               <div>
-                <span className="manager-section-kicker">Takip odagi</span>
-                <h3 className="manager-section-title">Secili filtreler</h3>
+                <span className="manager-section-kicker">Takip odağı</span>
+                <h3 className="manager-section-title">Seçili filtreler</h3>
               </div>
               <span className="manager-mini-chip">{selectedDate}</span>
             </div>
@@ -322,7 +324,7 @@ export function ManagerTrackingModule() {
                 <div>
                   <strong>Konum izi</strong>
                   <b>{history.length}</b>
-                  <p>Gecmis yakalama noktasi secili filtre icin listelendi</p>
+                  <p>Geçmiş konum noktaları seçili filtre için listelendi</p>
                 </div>
               </article>
               <article className="manager-overview-status">
@@ -331,8 +333,8 @@ export function ManagerTrackingModule() {
                 </span>
                 <div>
                   <strong>Push durumu</strong>
-                  <b>{pushConfig?.enabled ? "Hazir" : "Kayit modu"}</b>
-                  <p>{pushConfig?.enabled ? "Bildirim gonderimi etkin." : "Kampanya kaydi tutulur, push gonderimi yok."}</p>
+                  <b>{pushConfig?.enabled ? "Hazır" : "Kayıt modu"}</b>
+                  <p>{pushConfig?.enabled ? "Bildirim gönderimi etkin." : "Kampanya kaydı tutulur, push gönderimi yok."}</p>
                 </div>
               </article>
             </div>
@@ -340,55 +342,32 @@ export function ManagerTrackingModule() {
             <div className="manager-overview-note">
               <strong>{selectedProjectLabel}</strong>
               <p>{selectedUserLabel}</p>
-              <p>{feedRows.length} satirlik operasyon feed'i secili baglamla gosteriliyor.</p>
+              <p>{feedRows.length} satırlık operasyon akışı seçili bağlamla gösteriliyor.</p>
             </div>
 
             <div className="manager-overview-actions">
               <button className="button" onClick={() => setNotifyDrawerOpen(true)} type="button">
-                Bildirim Gonder
+                Bildirim Gönder
               </button>
               <button className="button ghost" onClick={() => setSelectedUserId("")} type="button">
-                Kisi Filtresini Temizle
+                Kişi Filtresini Temizle
               </button>
             </div>
           </aside>
         </section>
 
-        {message ? <div className="alert">{message}</div> : null}
+        {message ? <AlertMessage message={message} /> : null}
 
-        <section className="manager-stat-ribbon manager-stat-ribbon-compact manager-stat-ribbon-premium">
-          <article className="manager-stat-card">
-            <span>Proje marker</span>
-            <strong>{overview?.projectLocations.length ?? 0}</strong>
-            <small>{selectedProjectLabel}</small>
-          </article>
-          <article className="manager-stat-card">
-            <span>Aktif saha</span>
-            <strong>{fieldMarkers.length}</strong>
-            <small>{selectedUserLabel}</small>
-          </article>
-          <article className="manager-stat-card">
-            <span>Konum izi</span>
-            <strong>{history.length}</strong>
-            <small>Gecmis yakalama noktasi</small>
-          </article>
-          <article className="manager-stat-card">
-            <span>Kampanya</span>
-            <strong>{campaigns.length}</strong>
-            <small>Kayitli bildirim akisi</small>
-          </article>
-        </section>
-
-        <section className="manager-panel-split">
+        <div className="stack">
           <section className="manager-surface-card map-panel">
             <div className="manager-section-head compact">
               <div>
                 <span className="manager-section-kicker">Harita</span>
-                <h3 className="manager-section-title">Proje + aktif saha markerlari</h3>
+                <h3 className="manager-section-title">Projeler ve aktif saha</h3>
               </div>
               <div className="manager-inline-actions">
-                <span className="manager-inline-badge is-info">Proje marker</span>
-                <span className="manager-inline-badge is-positive">Saha marker</span>
+                <span className="manager-inline-badge is-info">Proje işareti</span>
+                <span className="manager-inline-badge is-positive">Saha işareti</span>
                 <span className="manager-mini-chip">{overview?.projectLocations.length ?? 0} proje</span>
                 <span className="manager-mini-chip">{fieldMarkers.length} aktif saha</span>
               </div>
@@ -406,16 +385,16 @@ export function ManagerTrackingModule() {
             />
           </section>
 
-          <aside className="manager-surface-card manager-focus-panel">
+          <section className="manager-surface-card manager-focus-panel">
             <div className="manager-section-head compact">
               <div>
-                <span className="manager-section-kicker">Canli feed</span>
-                <h3 className="manager-section-title">Oturum ve kampanya kayitlari</h3>
+                <span className="manager-section-kicker">Bildirimler ve oturumlar</span>
+                <h3 className="manager-section-title">Canlı akış</h3>
               </div>
-              <span className="manager-mini-chip">{feedRows.length} kayit</span>
+              <span className="manager-mini-chip">{feedRows.length} kayıt</span>
             </div>
             {!feedRows.length ? (
-              <div className="empty">Kayit bulunmuyor.</div>
+              <div className="empty">Kayıt bulunmuyor.</div>
             ) : (
               <div className="manager-feed-list">
                 {feedRows.map((row) => (
@@ -435,43 +414,37 @@ export function ManagerTrackingModule() {
                 ))}
               </div>
             )}
-          </aside>
-        </section>
+          </section>
+        </div>
       </div>
 
       <ManagerDrawer
         onClose={() => setNotifyDrawerOpen(false)}
         open={notifyDrawerOpen}
-        title="Bildirim Gonder"
-        description="Gunluk hatirlatici veya manuel bildirim akisini mevcut backend endpointleri ile tetikleyin."
+        title="Bildirim Gönder"
       >
         <div className="stack">
           {!pushConfig?.enabled ? (
-            <div className="alert">Web push yapilandirilmadi. Islem kampanya kaydi olarak tutulur.</div>
+            <AlertMessage
+              message="Web push yapılandırılmadı. İşlem kampanya kaydı olarak tutulur."
+              tone="info"
+            />
           ) : null}
 
-          <ManagerDrawerSection
-            eyebrow="Hazir akis"
-            title="Gunluk hatirlatici"
-            description="Secili tarih icin tek dokunusla standart hatirlatici kampanyasini olusturun."
-          >
+          <ManagerDrawerSection eyebrow="Hazır akış" title="Günlük hatırlatıcı">
             <button className="button secondary" onClick={sendDailyReminder} type="button">
-              Bugunun hatirlaticisini gonder
+              Bugünün hatırlatıcısını gönder
             </button>
           </ManagerDrawerSection>
 
-          <ManagerDrawerSection
-            eyebrow="Manuel kampanya"
-            title="Bildirim olustur"
-            description="Baslik, mesaj ve hedef saha personellerini secin."
-          >
+          <ManagerDrawerSection eyebrow="Manuel kampanya" title="Bildirim oluştur">
             <form className="stack" onSubmit={sendManualNotification}>
               <input
                 className="input"
                 onChange={(event) =>
                   setManualDraft((current) => ({ ...current, title: event.target.value }))
                 }
-                placeholder="Baslik"
+                placeholder="Başlık"
                 required
                 value={manualDraft.title}
               />
@@ -500,7 +473,7 @@ export function ManagerTrackingModule() {
                 ))}
               </div>
               <button className="button" type="submit">
-                Bildirim Gonder
+                Bildirim Gönder
               </button>
             </form>
           </ManagerDrawerSection>

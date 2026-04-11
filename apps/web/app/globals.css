@@ -181,17 +181,22 @@ textarea:disabled {
   border-radius: 12px;
   background: var(--surface-strong);
   color: var(--text);
+  line-height: 1.35;
+  caret-color: var(--accent-strong);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88);
   transition:
     border-color 160ms ease,
     box-shadow 160ms ease,
-    transform 160ms ease,
     background 160ms ease;
 }
 
 .textarea {
   min-height: 96px;
   resize: vertical;
+}
+
+.select {
+  padding-right: 36px;
 }
 
 .input::placeholder,
@@ -205,7 +210,6 @@ textarea:disabled {
   outline: none;
   border-color: rgba(184, 108, 47, 0.42);
   box-shadow: 0 0 0 4px rgba(184, 108, 47, 0.12);
-  transform: translateY(-1px);
 }
 
 .button {
@@ -285,8 +289,26 @@ textarea:disabled {
 
 .alert {
   padding: 12px 14px;
-  border: 1px solid rgba(179, 82, 77, 0.18);
+  border: 1px solid rgba(70, 111, 132, 0.18);
   border-radius: 14px;
+  background: var(--info-soft);
+  color: #305366;
+}
+
+.alert-info {
+  border-color: rgba(70, 111, 132, 0.18);
+  background: var(--info-soft);
+  color: #305366;
+}
+
+.alert-success {
+  border-color: rgba(47, 128, 101, 0.18);
+  background: var(--success-soft);
+  color: #25644f;
+}
+
+.alert-error {
+  border-color: rgba(179, 82, 77, 0.18);
   background: var(--danger-soft);
   color: #8f312d;
 }

@@ -24,8 +24,8 @@ export function MapPicker({ latitude, longitude, onPick }: MapPickerProps) {
             id: "picked",
             latitude,
             longitude,
-            label: "Secili proje konumu",
-            description: "Haritaya tiklayarak koordinati guncelleyin.",
+            label: "Seçili proje konumu",
+            description: "Haritaya tıklayarak koordinatı güncelleyin.",
             tone: "selected" as const
           }
         ]

@@ -20,7 +20,7 @@ export function ManagerAccordionSection({
   id,
   eyebrow,
   title,
-  description,
+  description: _description,
   meta,
   isOpen,
   onToggle,
@@ -38,7 +38,6 @@ export function ManagerAccordionSection({
         <div>
           <div className="eyebrow">{eyebrow}</div>
           <h3 className="section-title">{title}</h3>
-          {description ? <p className="muted manager-accordion-copy">{description}</p> : null}
         </div>
         <div className="manager-accordion-side">
           {meta}
@@ -75,15 +74,13 @@ export function ManagerDrawer({
   onClose,
   children,
   footer,
-  description,
+  description: _description,
   badge,
   initialFocusRef
 }: ManagerDrawerProps) {
   const panelRef = useRef<HTMLElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const titleId = useId();
-  const descriptionId = useId();
-
   useDialogBehavior({
     open,
     containerRef: panelRef,
@@ -100,7 +97,6 @@ export function ManagerDrawer({
       className="manager-drawer-shell manager-drawer-shell-portal manager-drawer-scope-v3"
       role="dialog"
       aria-labelledby={titleId}
-      aria-describedby={description ? descriptionId : undefined}
       aria-modal="true"
     >
       <button
@@ -118,11 +114,6 @@ export function ManagerDrawer({
               </h2>
               {badge}
             </div>
-            {description ? (
-              <p className="muted manager-drawer-description" id={descriptionId}>
-                {description}
-              </p>
-            ) : null}
           </div>
           <button className="button ghost" onClick={onClose} ref={closeButtonRef} type="button">
             <CloseIcon />
@@ -154,7 +145,7 @@ type ManagerDrawerSectionProps = {
 export function ManagerDrawerSection({
   eyebrow,
   title,
-  description,
+  description: _description,
   meta,
   children,
   tone = "default"
@@ -165,7 +156,6 @@ export function ManagerDrawerSection({
         <div>
           {eyebrow ? <span className="manager-section-kicker">{eyebrow}</span> : null}
           <h3 className="manager-section-title">{title}</h3>
-          {description ? <p className="muted manager-section-copy">{description}</p> : null}
         </div>
         {meta}
       </div>
