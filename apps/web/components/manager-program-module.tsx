@@ -16,6 +16,7 @@ import {
 } from "../lib/date";
 import { useAuth } from "./auth-provider";
 import { ManagerDrawer, ManagerDrawerSection } from "./manager-ui";
+import { CalendarIcon, FileIcon, TimelineIcon, UsersIcon } from "./ui-icons";
 import { useSyncedDashboardDate } from "./use-synced-dashboard-date";
 
 const DATE_WINDOW_RADIUS = 45;
@@ -426,17 +427,102 @@ export function ManagerProgramModule() {
   }
 
   const selectedProjectSummary = projects.find((project) => project.id === selectedProjectId) ?? null;
+  const programSignalCards = [
+    {
+      label: "Program proje",
+      value: `${program?.programProjects.length ?? 0}`,
+      detail: "Secili gun icin kayitli proje sayisi",
+      icon: CalendarIcon
+    },
+    {
+      label: "Secili ekip",
+      value: `${selectedProgramProject ? assignmentDraft.length : 0}`,
+      detail: "Drawer baglaminda secilen saha personeli",
+      icon: UsersIcon
+    },
+    {
+      label: "Gun notlari",
+      value: `${selectedProgramProject?.dayEntries?.length ?? 0}`,
+      detail: "Secili projenin gunluk not ve dosya akisi",
+      icon: FileIcon
+    }
+  ];
 
   return (
     <>
       <div className="manager-module manager-stack-layout">
-        <section className="manager-command-surface manager-command-surface-grid">
-          <div className="manager-command-copy">
-            <span className="manager-command-kicker">Gunluk Program</span>
-            <h2 className="manager-block-title">Secili gun atamalari</h2>
-            <p className="manager-block-copy">
-              Tarih seridinden gun secin, projeyi gune ekleyin ve ekip/not akislarini ayni panelden yonetin.
-            </p>
+        <section className="manager-overview-hero">
+          <div className="manager-command-surface manager-overview-poster">
+            <div className="manager-command-copy">
+              <span className="manager-command-kicker">Gunluk Program</span>
+              <h2 className="manager-block-title">Secili gunun proje, ekip ve not akislarini ayni yuzeyde yonet</h2>
+              <p className="manager-block-copy manager-block-copy-visible">
+                Takvim seridi ve program drawer'i ayni sistemde calisiyor; plan kayitlari taranabilir hale geliyor.
+              </p>
+            </div>
+
+            <div className="manager-overview-highlights">
+              <div className="manager-inline-actions manager-inline-actions-wrap">
+                <button
+                  className="button ghost"
+                  onClick={() => setSelectedDate((current) => shiftDateString(current, -1))}
+                  type="button"
+                >
+                  Onceki gun
+                </button>
+                <input
+                  className="input"
+                  onChange={(event) =>
+                    setSelectedDate(normalizeDateForMonth(selectedDate, event.target.value))
+                  }
+                  type="month"
+                  value={selectedDate.slice(0, 7)}
+                />
+                <input
+                  className="input"
+                  onChange={(event) => setSelectedDate(event.target.value)}
+                  type="date"
+                  value={selectedDate}
+                />
+                <button
+                  className="button ghost"
+                  onClick={() => setSelectedDate((current) => shiftDateString(current, 1))}
+                  type="button"
+                >
+                  Sonraki gun
+                </button>
+              </div>
+
+              <div className="manager-overview-spotlights">
+                {programSignalCards.map((item) => {
+                  const Icon = item.icon;
+
+                  return (
+                    <article className="manager-overview-spotlight" key={item.label}>
+                      <span className="manager-overview-spotlight-icon" aria-hidden="true">
+                        <Icon />
+                      </span>
+                      <div>
+                        <span>{item.label}</span>
+                        <strong>{loading ? "..." : item.value}</strong>
+                        <p>{item.detail}</p>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <aside className="manager-surface-card manager-overview-sidecar">
+            <div className="manager-section-head compact">
+              <div>
+                <span className="manager-section-kicker">Gun ozeti</span>
+                <h3 className="manager-section-title">Plan sinyali</h3>
+              </div>
+              <span className="manager-mini-chip">{formatDisplayDate(selectedDate)}</span>
+            </div>
+
             {!program?.programProjects.length ? (
               <div className="empty">Secili gunde atama yok.</div>
             ) : (
@@ -459,44 +545,27 @@ export function ManagerProgramModule() {
                 ))}
               </div>
             )}
-          </div>
-          <div className="manager-command-controls">
-            <div className="manager-inline-actions">
-              <button
-                className="button ghost"
-                onClick={() => setSelectedDate((current) => shiftDateString(current, -1))}
-                type="button"
-              >
-                Onceki gun
+
+            <div className="manager-overview-note">
+              <strong>{selectedProjectSummary?.name ?? "Proje secin"}</strong>
+              <p>{selectedProjectSummary?.customer?.name ?? selectedProjectSummary?.locationLabel ?? "Secili gun icin proje odagi bekleniyor."}</p>
+              <p>{hasPendingChanges ? "Drawer icinde kaydedilmeyi bekleyen degisiklik var." : "Program verisi guncel gorunuyor."}</p>
+            </div>
+
+            <div className="manager-overview-actions">
+              <button className="button" onClick={() => setProgramDrawerOpen(true)} type="button">
+                Programi Ac
               </button>
-              <input
-                className="input"
-                onChange={(event) =>
-                  setSelectedDate(normalizeDateForMonth(selectedDate, event.target.value))
-                }
-                type="month"
-                value={selectedDate.slice(0, 7)}
-              />
-              <input
-                className="input"
-                onChange={(event) => setSelectedDate(event.target.value)}
-                type="date"
-                value={selectedDate}
-              />
-              <button
-                className="button ghost"
-                onClick={() => setSelectedDate((current) => shiftDateString(current, 1))}
-                type="button"
-              >
-                Sonraki gun
+              <button className="button ghost" onClick={() => scrollTimeline(1)} type="button">
+                Seride Ilerle
               </button>
             </div>
-          </div>
+          </aside>
         </section>
 
         {moduleMessage ? <div className="alert">{moduleMessage}</div> : null}
 
-        <section className="manager-stat-ribbon manager-stat-ribbon-compact">
+        <section className="manager-stat-ribbon manager-stat-ribbon-compact manager-stat-ribbon-premium">
           <article className="manager-stat-card">
             <span>Secili gun</span>
             <strong>{selectedDate.slice(-2)}</strong>

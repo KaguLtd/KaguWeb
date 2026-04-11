@@ -16,6 +16,14 @@ import {
   shiftDateString
 } from "../lib/date";
 import { useAuth } from "./auth-provider";
+import {
+  CalendarIcon,
+  CheckCircleIcon,
+  FileIcon,
+  LocationArrowIcon,
+  TimelineIcon,
+  UsersIcon
+} from "./ui-icons";
 import { useSyncedDashboardDate } from "./use-synced-dashboard-date";
 
 function toCsv(rows: ManagerProjectDurationReportItem[]) {
@@ -85,6 +93,10 @@ function formatRouteMode(routeMode: string) {
     default:
       return routeMode;
   }
+}
+
+function formatCampaignType(type: string) {
+  return type === "DAILY_REMINDER" ? "Gunluk hatirlatici" : "Manuel bildirim";
 }
 
 export function ManagerOverviewModule() {
@@ -166,6 +178,12 @@ export function ManagerOverviewModule() {
     }
     return reportRows.filter((row) => row.projectName.toLocaleLowerCase("tr-TR").includes(query));
   }, [reportQuery, reportRows]);
+  const leadProject = programProjects[0];
+  const latestActivity = activities[0];
+  const latestCampaign = notificationSummary?.campaigns[0];
+  const backupHealthy =
+    !!backupOpsSummary?.latestRestorePrepare?.integrityVerified &&
+    !!backupOpsSummary?.latestRestorePrepare?.inventoryVerified;
 
   const summaryCards = useMemo(
     () => [
@@ -197,6 +215,58 @@ export function ManagerOverviewModule() {
     ],
     [overview]
   );
+  const spotlightCards = [
+    {
+      label: "Saha ekipleri",
+      value: `${overview?.summaryCards.openSessionCount ?? 0}`,
+      detail:
+        activeSessions.length > 0
+          ? `${activeSessions[0]?.project.name ?? "Secili proje"} uzerinde aktif hareket var`
+          : "Bugun aktif saha oturumu bekleniyor",
+      icon: UsersIcon
+    },
+    {
+      label: "Rota disiplini",
+      value: `${routingSummary?.recommendedStopCount ?? 0}`,
+      detail: routingSummary
+        ? `${formatRouteMode(routingSummary.routeMode)} ile ${routingSummary.skippedProjectCount} eksik konum`
+        : "Rota ozeti yukleniyor",
+      icon: LocationArrowIcon
+    },
+    {
+      label: "Form akisi",
+      value: `${fieldFormSummary?.totalCount ?? 0}`,
+      detail: fieldFormSummary
+        ? `${fieldFormSummary.uniqueTemplateCount} template ve ${fieldFormSummary.uniqueProjectCount} proje`
+        : "Form sinyali bekleniyor",
+      icon: FileIcon
+    }
+  ];
+  const quickStatusItems = [
+    {
+      label: "Jobs",
+      value: `${jobSummary?.runningCount ?? 0} aktif`,
+      detail: `${jobSummary?.failedCount ?? 0} hata kaydi`,
+      tone: jobSummary?.failedCount ? "warn" : "ok",
+      icon: TimelineIcon
+    },
+    {
+      label: "Restore check",
+      value: backupHealthy ? "Hazir" : "Kontrol et",
+      detail: backupOpsSummary?.latestRestorePrepare
+        ? formatDisplayDateTime(backupOpsSummary.latestRestorePrepare.startedAt)
+        : "Kayit bekleniyor",
+      tone: backupHealthy ? "ok" : "warn",
+      icon: CheckCircleIcon
+    },
+    {
+      label: "Bildirim",
+      value: `${notificationSummary?.sentCount ?? 0} teslim`,
+      detail: latestCampaign ? formatCampaignType(latestCampaign.type) : "Kampanya bekleniyor",
+      tone: notificationSummary?.failedCount ? "warn" : "neutral",
+      icon: CalendarIcon
+    }
+  ];
 
   async function downloadDailyCsv() {
     if (!token) {
@@ -225,16 +295,134 @@ export function ManagerOverviewModule() {
 
   return (
     <div className="manager-module manager-stack-layout">
-      <section className="manager-command-surface manager-command-surface-grid">
+      <section className="manager-overview-hero">
+        <div className="manager-command-surface manager-overview-poster">
+          <div className="manager-command-copy">
+            <span className="manager-command-kicker">Secili gun</span>
+            <h2 className="manager-block-title">Operasyon ritmini tek bakista yonetin</h2>
+            <p className="manager-block-copy manager-block-copy-visible">
+              Saha ekipleri, rota disiplini, form akisi ve export operasyonlari ayni ana yuzeyde.
+            </p>
+          </div>
+          <div className="manager-overview-highlights">
+            <div className="manager-inline-actions manager-inline-actions-wrap">
+              <button
+                className="button ghost"
+                onClick={() => setSelectedDate((current) => shiftDateString(current, -1))}
+                type="button"
+              >
+                Onceki gun
+              </button>
+              <input
+                className="input"
+                onChange={(event) => setSelectedDate(event.target.value)}
+                type="date"
+                value={selectedDate}
+              />
+              <button
+                className="button ghost"
+                onClick={() => setSelectedDate((current) => shiftDateString(current, 1))}
+                type="button"
+              >
+                Sonraki gun
+              </button>
+            </div>
+            <div className="manager-overview-spotlights">
+              {spotlightCards.map((item) => {
+                const Icon = item.icon;
+
+                return (
+                  <article className="manager-overview-spotlight" key={item.label}>
+                    <span className="manager-overview-spotlight-icon" aria-hidden="true">
+                      <Icon />
+                    </span>
+                    <div>
+                      <span>{item.label}</span>
+                      <strong>{loading ? "..." : item.value}</strong>
+                      <p>{item.detail}</p>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <aside className="manager-surface-card manager-overview-sidecar">
+          <div className="manager-section-head compact">
+            <div>
+              <span className="manager-section-kicker">Hizli durum</span>
+              <h3 className="manager-section-title">Bugunun kontrol noktasi</h3>
+            </div>
+            <span className="manager-mini-chip">{formatDisplayDate(selectedDate)}</span>
+          </div>
+
+          <div className="manager-overview-statuslist">
+            {quickStatusItems.map((item) => {
+              const Icon = item.icon;
+
+              return (
+                <article className={`manager-overview-status manager-overview-status-${item.tone}`} key={item.label}>
+                  <span className="manager-overview-status-icon" aria-hidden="true">
+                    <Icon />
+                  </span>
+                  <div>
+                    <strong>{item.label}</strong>
+                    <b>{item.value}</b>
+                    <p>{item.detail}</p>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          <div className="manager-overview-actions">
+            <button className="button" onClick={downloadDailyCsv} type="button">
+              Gunluk CSV
+            </button>
+            <button className="button ghost" onClick={downloadProjectDurationCsv} type="button">
+              Proje CSV
+            </button>
+          </div>
+
+          <div className="manager-overview-note">
+            <strong>Odak noktasi</strong>
+            <p>
+              {leadProject
+                ? `${leadProject.projectName} bugun oncelikli proje olarak one cikiyor.`
+                : "Secili gun icin program onceligi henuz olusmadi."}
+            </p>
+            <p>
+              {latestActivity
+                ? `Son hareket ${latestActivity.actor.displayName} tarafindan ${formatDisplayDateTime(latestActivity.createdAt)} aninda kaydedildi.`
+                : "Yeni aktivite kaydi beklenecek."}
+            </p>
+          </div>
+        </aside>
+      </section>
+
+      {message ? <div className="alert">{message}</div> : null}
+
+      <section className="manager-stat-ribbon manager-stat-ribbon-premium">
+        {summaryCards.map((card) => (
+          <article className="manager-stat-card" key={card.label}>
+            <span>{card.label}</span>
+            <strong>{loading ? "..." : card.value}</strong>
+            <small>{card.detail}</small>
+          </article>
+        ))}
+      </section>
+
+      <section className="manager-command-surface manager-command-surface-grid manager-command-surface-secondary">
         <div className="manager-command-copy">
-          <span className="manager-command-kicker">Secili gun</span>
-          <h2 className="manager-block-title">Sahadaki hareketi yonetin</h2>
-          <p className="manager-block-copy">
-            Aktif ekipleri, proje yogunlugunu ve gune ait export aksiyonlarini ayni yuzeyden izleyin.
+          <span className="manager-command-kicker">Operasyon ciktisi</span>
+          <h2 className="manager-block-title">Takvim, export ve raporlari hizli yonet</h2>
+          <p className="manager-block-copy manager-block-copy-visible">
+            Gun secimi ve indirme aksiyonlari merkezi yuzeyde tutuluyor; alttaki paneller ise gune ait detay akisini veriyor.
           </p>
         </div>
         <div className="manager-command-controls manager-command-controls-left">
-          <div className="manager-inline-actions">
+          <div className="manager-inline-actions manager-inline-actions-wrap">
             <button
               className="button ghost"
               onClick={() => setSelectedDate((current) => shiftDateString(current, -1))}
@@ -265,18 +453,6 @@ export function ManagerOverviewModule() {
             </button>
           </div>
         </div>
-      </section>
-
-      {message ? <div className="alert">{message}</div> : null}
-
-      <section className="manager-stat-ribbon">
-        {summaryCards.map((card) => (
-          <article className="manager-stat-card" key={card.label}>
-            <span>{card.label}</span>
-            <strong>{loading ? "..." : card.value}</strong>
-            <small>{card.detail}</small>
-          </article>
-        ))}
       </section>
 
       <div className="manager-dashboard-grid-operations">
@@ -389,7 +565,7 @@ export function ManagerOverviewModule() {
                     <div>
                       <strong>{execution.jobName}</strong>
                       <p className="muted">
-                        {(execution.actor?.displayName ?? "Sistem")} • {execution.triggerSource}
+                        {(execution.actor?.displayName ?? "Sistem")} / {execution.triggerSource}
                       </p>
                     </div>
                     <span className="manager-mini-chip">
@@ -490,7 +666,7 @@ export function ManagerOverviewModule() {
                     <div>
                       <strong>{activity.projectName}</strong>
                       <p className="muted">
-                        {activity.actor.displayName} • {activityTypeLabel(activity)}
+                        {activity.actor.displayName} / {activityTypeLabel(activity)}
                       </p>
                     </div>
                     <span className="manager-mini-chip">{formatDisplayDateTime(activity.createdAt)}</span>
@@ -638,9 +814,7 @@ export function ManagerOverviewModule() {
                   <div className="manager-feed-topline">
                     <div>
                       <strong>{response.templateName}</strong>
-                      <p className="muted">
-                        {response.projectName} â€¢ {response.actor.displayName}
-                      </p>
+                      <p className="muted">{response.projectName} / {response.actor.displayName}</p>
                     </div>
                     <span className="manager-mini-chip">
                       {formatDisplayDateTime(response.createdAt)}

@@ -3,7 +3,12 @@ import { ManagerShell } from "../../../../components/manager-shell";
 
 export default function ManagerProjectsPage() {
   return (
-    <ManagerShell title="Projeler">
+    <ManagerShell
+      title="Projeler"
+      kicker="Kayit yonetimi"
+      description="Cari, konum ve dosya akislarini birlestiren proje workspace'i."
+      contextItems={["Proje klasorleri", "Cari ve konum baglami"]}
+    >
       <ManagerProjectsModule />
     </ManagerShell>
   );

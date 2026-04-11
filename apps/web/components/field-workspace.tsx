@@ -281,9 +281,10 @@ export function FieldWorkspace({
   const activeSessionCount = assignments.filter((assignment) => assignment.activeSession).length;
   const notificationHistory = notificationHistoryPage.items;
   const homeProgramDateLabel = formatProgramDate(assignments[0]?.dailyProgramDate ?? getTodayLocal());
-  const footerDateLabel = selectedAssignment
+  const assignmentDateLabel = selectedAssignment
     ? formatProgramDate(selectedAssignment.dailyProgramDate)
     : homeProgramDateLabel;
+  const footerDateLabel = assignmentDateLabel;
   const syncMessage = isOfflineMode
     ? pendingSyncCount > 0
       ? `Cihaz cevrimdisi. ${pendingSyncCount} bekleyen kayit var.`
@@ -1272,8 +1273,8 @@ export function FieldWorkspace({
             <h2>{selectedAssignment.projectName}</h2>
             <div className="field-v3-topbar-meta">
               <span>{selectedAssignment.customerName ?? "Cari tanimli degil"}</span>
-              <span>{footerDateLabel}</span>
-              <span>{activeLabel}</span>
+              <span>{assignmentDateLabel}</span>
+              <span>{selectedAssignment.locationLabel ?? "Konum bekleniyor"}</span>
             </div>
           </div>
           <div className={`chip field-v3-status ${selectedAssignment.activeSession ? "is-active" : "is-idle"}`}>
@@ -1283,6 +1284,36 @@ export function FieldWorkspace({
 
         {message ? <div className="alert field-v3-banner">{message}</div> : null}
         {syncMessage ? <div className="field-v4-inlinehint">{syncMessage}</div> : null}
+        <div className="field-v4-rail">
+          <div className="field-v4-rail-card">
+            <span className="field-v4-rail-label">Program tarihi</span>
+            <strong>{assignmentDateLabel}</strong>
+          </div>
+          <div className="field-v4-rail-card">
+            <span className="field-v4-rail-label">Durum</span>
+            <strong>{activeLabel}</strong>
+          </div>
+          <div className="field-v4-rail-card">
+            <span className="field-v4-rail-label">Konum</span>
+            <strong>{selectedAssignment.locationLabel ?? "Konum bekleniyor"}</strong>
+          </div>
+        </div>
+        <div className="field-v4-rail">
+          <div className="field-v4-rail-card">
+            <span className="field-v4-rail-label">Program tarihi</span>
+            <strong>{homeProgramDateLabel}</strong>
+          </div>
+          <div className="field-v4-rail-card">
+            <span className="field-v4-rail-label">Aktif saha</span>
+            <strong>{activeSessionCount ? `${activeSessionCount} ekip` : "Hazir"}</strong>
+          </div>
+          <div className="field-v4-rail-card">
+            <span className="field-v4-rail-label">Senkron</span>
+            <strong>
+              {isOfflineMode ? "Cevrimdisi" : syncStatus === "syncing" ? "Calisiyor" : "Baglandi"}
+            </strong>
+          </div>
+        </div>
 
         <section className="field-v3-screen field-v4-detailstack">
           <div className="field-v3-panel field-v4-compactpanel field-v4-detailpanel">
@@ -1432,6 +1463,7 @@ export function FieldWorkspace({
                 <div className="chip field-v3-chip-soft">
                   {assignments.length} proje / {activeSessionCount} aktif
                 </div>
+                <div className="chip field-v3-chip-soft">{homeProgramDateLabel}</div>
               </div>
 
               {assignments.length === 0 ? (
@@ -1532,6 +1564,7 @@ export function FieldWorkspace({
                 <div className="chip field-v3-chip-soft">
                   {notificationHistoryPage.totalCount} kayit / Sayfa {notificationHistoryPage.page}
                 </div>
+                <div className="chip field-v3-chip-soft">{homeProgramDateLabel}</div>
               </div>
 
               <div className="field-v4-feed">
@@ -1597,6 +1630,7 @@ export function FieldWorkspace({
                   <BellIcon />
                   <span>{pushEnabled ? "Bildirimler acik" : "Bildirimleri ac"}</span>
                 </button>
+                <span className="chip field-v3-chip-soft">{homeProgramDateLabel}</span>
               </div>
 
               {pushMessage ? <div className="field-v4-inlinehint">{pushMessage}</div> : null}
@@ -1674,6 +1708,16 @@ export function FieldWorkspace({
   return (
     <div className="field-mobile-shell field-v3-shell">
       <div className="field-mobile-frame field-v3-frame">
+        <div className="field-v4-topbar">
+          <div>
+            <span className="field-v4-topbar-kicker">Kagu saha</span>
+            <strong className="field-v4-topbar-title">{user.displayName}</strong>
+          </div>
+          <div className="field-v4-topbar-meta">
+            <span>{assignmentDateLabel}</span>
+            <span>{isOfflineMode ? "Cevrimdisi" : "Online"}</span>
+          </div>
+        </div>
         {selectedAssignment ? renderDetailView() : renderHomeView()}
         <div className="field-v4-footer-spacer" />
       </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -236,10 +237,12 @@ export function ManagerShell({
       <div className="manager-workbench">
         <aside className="manager-rail manager-rail-wide" aria-label="Yonetici gezinme">
           <div className="manager-rail-brand">
-            <div className="manager-rail-mark">K</div>
+            <div className="manager-rail-mark manager-rail-mark-logo">
+              <Image alt="Kagu" height={32} priority src="/icon.svg" width={32} />
+            </div>
             <div className="manager-rail-brandcopy">
               <strong>Kagu</strong>
-              <span>Warm Ops Workspace</span>
+              <span>Ltd. operasyon merkezi</span>
             </div>
           </div>
 
@@ -296,6 +299,15 @@ export function ManagerShell({
         <div className="manager-canvas-shell manager-canvas-shell-compact">
           <header className="manager-topbar manager-topbar-compact">
             <div className="manager-topbar-copy">
+              <div className="manager-topbar-brandlock">
+                <div className="manager-topbar-brandmark">
+                  <Image alt="Kagu" height={36} src="/icon.svg" width={36} />
+                </div>
+                <div className="manager-topbar-brandcopy">
+                  <strong>Kagu Ltd.</strong>
+                  <span>Manager workspace</span>
+                </div>
+              </div>
               <div className="manager-page-heading">
                 <div className="manager-page-kicker">{kicker ?? descriptor.kicker}</div>
                 <h1 className="manager-page-title manager-page-title-compact">{title}</h1>

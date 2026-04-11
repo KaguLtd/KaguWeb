@@ -12,6 +12,7 @@ import { apiFetch, isAbortError } from "../lib/api";
 import { formatDisplayDate } from "../lib/date";
 import { useAuth } from "./auth-provider";
 import { ManagerDrawer, ManagerDrawerSection } from "./manager-ui";
+import { CheckCircleIcon, FileIcon, TimelineIcon } from "./ui-icons";
 
 type FieldFormEditorMode = "create" | "edit" | "version";
 
@@ -328,19 +329,41 @@ export function ManagerFieldFormsModule() {
     }
   }
 
+  const formSignalCards = [
+    {
+      label: "Template",
+      value: `${templates.length}`,
+      detail: "Kayitli saha formu",
+      icon: FileIcon
+    },
+    {
+      label: "Aktif",
+      value: `${templates.filter((template) => template.isActive).length}`,
+      detail: "Kullanimda olan form template'leri",
+      icon: CheckCircleIcon
+    },
+    {
+      label: "Versiyon",
+      value: `${detail?.versions.length ?? 0}`,
+      detail: "Secili formun schema gecmisi",
+      icon: TimelineIcon
+    }
+  ];
+
   return (
     <>
       <div className="manager-module manager-stack-layout">
-        <section className="manager-command-surface manager-command-surface-grid">
+        <section className="manager-overview-hero">
+          <div className="manager-command-surface manager-overview-poster">
           <div className="manager-command-copy">
             <span className="manager-command-kicker">Saha formlari</span>
             <h2 className="manager-block-title">Yapilandirilmis formlari yonetin</h2>
-            <p className="manager-block-copy">
+            <p className="manager-block-copy manager-block-copy-visible">
               Template tanimlarini, aktiflik durumunu ve versiyonlarini ayni yonetim yuzeyinden kontrol edin.
             </p>
           </div>
-          <div className="manager-command-controls manager-command-controls-left">
-            <div className="manager-inline-actions">
+          <div className="manager-overview-highlights">
+            <div className="manager-inline-actions manager-inline-actions-wrap">
               <Link className="button ghost" href="/dashboard/form-responses" scroll={false}>
                 Cevaplari Incele
               </Link>
@@ -354,12 +377,70 @@ export function ManagerFieldFormsModule() {
                 Yeni Versiyon
               </button>
             </div>
+            <div className="manager-overview-spotlights">
+              {formSignalCards.map((item) => {
+                const Icon = item.icon;
+
+                return (
+                  <article className="manager-overview-spotlight" key={item.label}>
+                    <span className="manager-overview-spotlight-icon" aria-hidden="true">
+                      <Icon />
+                    </span>
+                    <div>
+                      <span>{item.label}</span>
+                      <strong>{loading ? "..." : item.value}</strong>
+                      <p>{item.detail}</p>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
           </div>
+          </div>
+
+          <aside className="manager-surface-card manager-overview-sidecar">
+            <div className="manager-section-head compact">
+              <div>
+                <span className="manager-section-kicker">Secili form</span>
+                <h3 className="manager-section-title">Schema ozeti</h3>
+              </div>
+              <span className="manager-mini-chip">{selectedTemplate?.isActive ? "Aktif" : "Pasif"}</span>
+            </div>
+
+            <div className="manager-overview-statuslist">
+              <article className={`manager-overview-status ${selectedTemplate?.isActive ? "manager-overview-status-ok" : "manager-overview-status-warn"}`}>
+                <span className="manager-overview-status-icon" aria-hidden="true">
+                  <CheckCircleIcon />
+                </span>
+                <div>
+                  <strong>Durum</strong>
+                  <b>{selectedTemplate?.isActive ? "Hazir" : "Pasif"}</b>
+                  <p>{selectedTemplate ? `${selectedTemplate.responseCount} cevap kaydi` : "Form secimi bekleniyor"}</p>
+                </div>
+              </article>
+              <article className="manager-overview-status">
+                <span className="manager-overview-status-icon" aria-hidden="true">
+                  <TimelineIcon />
+                </span>
+                <div>
+                  <strong>Son versiyon</strong>
+                  <b>{detail?.versions[0] ? `v${detail.versions[0].versionNumber}` : "-"}</b>
+                  <p>{detail?.versions[0]?.title ?? "Versiyon kaydi yok"}</p>
+                </div>
+              </article>
+            </div>
+
+            <div className="manager-overview-note">
+              <strong>{selectedTemplate?.name ?? "Form secin"}</strong>
+              <p>{detail?.description?.trim() || "Form aciklamasi bulunmuyor."}</p>
+              <p>{detail?.versions[0] ? `${detail.versions[0].schema.fields.length} alan tanimli.` : "Schema detayi bekleniyor."}</p>
+            </div>
+          </aside>
         </section>
 
         {message ? <div className="alert">{message}</div> : null}
 
-        <section className="manager-stat-ribbon manager-stat-ribbon-compact">
+        <section className="manager-stat-ribbon manager-stat-ribbon-compact manager-stat-ribbon-premium">
           <article className="manager-stat-card">
             <span>Template</span>
             <strong>{loading ? "..." : templates.length}</strong>
@@ -382,7 +463,7 @@ export function ManagerFieldFormsModule() {
           </article>
         </section>
 
-        <div className="manager-dashboard-grid-operations">
+        <div className="manager-panel-split">
           <section className="manager-surface-card">
             <div className="manager-section-head compact">
               <div>
@@ -412,7 +493,7 @@ export function ManagerFieldFormsModule() {
                         <strong>{template.name}</strong>
                         <p className="muted">
                           {template.latestVersion
-                            ? `Versiyon ${template.latestVersion.versionNumber} • ${template.latestVersion.title}`
+                            ? `Versiyon ${template.latestVersion.versionNumber} / ${template.latestVersion.title}`
                             : "Versiyon yok"}
                         </p>
                       </div>
@@ -488,7 +569,7 @@ export function ManagerFieldFormsModule() {
                         <div className="manager-feed-inline">
                           {version.schema.fields.map((field) => (
                             <span className="manager-mini-chip" key={`${version.id}-${field.key}`}>
-                              {field.label} • {field.type}
+                              {field.label} / {field.type}
                             </span>
                           ))}
                         </div>

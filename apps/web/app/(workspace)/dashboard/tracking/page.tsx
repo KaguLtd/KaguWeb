@@ -3,7 +3,12 @@ import { ManagerTrackingModule } from "../../../../components/manager-tracking-m
 
 export default function ManagerTrackingPage() {
   return (
-    <ManagerShell title="Takip">
+    <ManagerShell
+      title="Takip"
+      kicker="Canli takip"
+      description="Harita, saha hareketi ve bildirim akislarini secili tarih baglaminda izleyin."
+      contextItems={["Harita baglami", "Feed ve kampanya sinyali"]}
+    >
       <ManagerTrackingModule />
     </ManagerShell>
   );

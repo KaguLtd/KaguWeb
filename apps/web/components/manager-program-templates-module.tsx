@@ -7,6 +7,7 @@ import { apiFetch, isAbortError } from "../lib/api";
 import { formatDisplayDate } from "../lib/date";
 import { useAuth } from "./auth-provider";
 import { ManagerDrawer, ManagerDrawerSection } from "./manager-ui";
+import { CalendarIcon, CheckCircleIcon, TimelineIcon, UsersIcon } from "./ui-icons";
 
 type ProgramTemplateSummary = {
   id: string;
@@ -470,19 +471,42 @@ export function ManagerProgramTemplatesModule() {
     }
   }
 
+  const templateSignalCards = [
+    {
+      label: "Template",
+      value: `${templates.length}`,
+      detail: "Kayitli tekrarli plan",
+      icon: CalendarIcon
+    },
+    {
+      label: "Aktif",
+      value: `${templates.filter((template) => template.isActive).length}`,
+      detail: "Materialize edilebilir template",
+      icon: CheckCircleIcon
+    },
+    {
+      label: "Atama",
+      value: `${selectedTemplate?.assignmentCount ?? 0}`,
+      detail: "Secili template altindaki toplam ekip baglantisi",
+      icon: UsersIcon
+    }
+  ];
+
   return (
     <>
     <div className="manager-module manager-stack-layout">
-      <section className="manager-command-surface manager-command-surface-grid">
+      <section className="manager-overview-hero">
+        <div className="manager-command-surface manager-overview-poster">
         <div className="manager-command-copy">
           <span className="manager-command-kicker">Template yonetimi</span>
           <h2 className="manager-block-title">Tekrar eden programlari yonetin</h2>
-          <p className="manager-block-copy">
+          <p className="manager-block-copy manager-block-copy-visible">
             Haftalik rota sablonlarini inceleyin, preview alin ve secili gune kontrollu sekilde uygulayin.
           </p>
         </div>
-        <div className="manager-command-controls manager-command-controls-left">
-          <div className="manager-inline-actions">
+
+        <div className="manager-overview-highlights">
+          <div className="manager-inline-actions manager-inline-actions-wrap">
             <Link className="button ghost" href="/dashboard/program" scroll={false}>
               Gunluk Programa Git
             </Link>
@@ -498,7 +522,7 @@ export function ManagerProgramTemplatesModule() {
               Template Duzenle
             </button>
           </div>
-          <div className="manager-inline-actions">
+          <div className="manager-inline-actions manager-inline-actions-wrap">
             <Link className="button ghost" href="/dashboard/tracking" scroll={false}>
               Takip Onerisini Ac
             </Link>
@@ -515,12 +539,70 @@ export function ManagerProgramTemplatesModule() {
               Materialize
             </button>
           </div>
+          <div className="manager-overview-spotlights">
+            {templateSignalCards.map((item) => {
+              const Icon = item.icon;
+
+              return (
+                <article className="manager-overview-spotlight" key={item.label}>
+                  <span className="manager-overview-spotlight-icon" aria-hidden="true">
+                    <Icon />
+                  </span>
+                  <div>
+                    <span>{item.label}</span>
+                    <strong>{loading ? "..." : item.value}</strong>
+                    <p>{item.detail}</p>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
         </div>
+        </div>
+
+        <aside className="manager-surface-card manager-overview-sidecar">
+          <div className="manager-section-head compact">
+            <div>
+              <span className="manager-section-kicker">Secili sablon</span>
+              <h3 className="manager-section-title">Template ozeti</h3>
+            </div>
+            <span className="manager-mini-chip">{previewDate}</span>
+          </div>
+
+          <div className="manager-overview-statuslist">
+            <article className={`manager-overview-status ${selectedTemplate?.isActive ? "manager-overview-status-ok" : "manager-overview-status-warn"}`}>
+              <span className="manager-overview-status-icon" aria-hidden="true">
+                <CheckCircleIcon />
+              </span>
+              <div>
+                <strong>Durum</strong>
+                <b>{selectedTemplate?.isActive ? "Aktif" : "Pasif"}</b>
+                <p>{selectedTemplate ? `${selectedTemplate.projectCount} proje / ${selectedTemplate.assignmentCount} atama` : "Template secimi bekleniyor"}</p>
+              </div>
+            </article>
+            <article className="manager-overview-status">
+              <span className="manager-overview-status-icon" aria-hidden="true">
+                <TimelineIcon />
+              </span>
+              <div>
+                <strong>Preview</strong>
+                <b>{preview?.matchesRule ? "Hazir" : "Bekliyor"}</b>
+                <p>{preview ? `${preview.summary.createProjectCount} yeni proje / ${preview.summary.createAssignmentCount} yeni atama` : "Preview alinmadi"}</p>
+              </div>
+            </article>
+          </div>
+
+          <div className="manager-overview-note">
+            <strong>{selectedTemplate?.name ?? "Template secin"}</strong>
+            <p>{selectedTemplate?.rule ? `${formatWeekdays(selectedTemplate.rule.weekdays)} / ${selectedTemplate.rule.startDate}` : "Kural tanimi bekleniyor."}</p>
+            <p>{selectedTemplate?.managerNote?.trim() || "Yonetici notu yok."}</p>
+          </div>
+        </aside>
       </section>
 
       {message ? <div className="alert">{message}</div> : null}
 
-      <section className="manager-stat-ribbon manager-stat-ribbon-compact">
+      <section className="manager-stat-ribbon manager-stat-ribbon-compact manager-stat-ribbon-premium">
         <article className="manager-stat-card">
           <span>Template</span>
           <strong>{loading ? "..." : templates.length}</strong>
@@ -543,7 +625,7 @@ export function ManagerProgramTemplatesModule() {
         </article>
       </section>
 
-      <div className="manager-dashboard-grid-operations">
+      <div className="manager-panel-split">
         <section className="manager-surface-card">
           <div className="manager-section-head compact">
             <div>
@@ -576,7 +658,7 @@ export function ManagerProgramTemplatesModule() {
                       <strong>{template.name}</strong>
                       <p className="muted">
                         {template.rule
-                          ? `${formatWeekdays(template.rule.weekdays)} • ${template.rule.startDate}`
+                          ? `${formatWeekdays(template.rule.weekdays)} / ${template.rule.startDate}`
                           : "Kural tanimi bekleniyor"}
                       </p>
                     </div>
@@ -744,7 +826,7 @@ export function ManagerProgramTemplatesModule() {
                     <div className="manager-feed-inline">
                       {plan.assignmentPlans.map((assignment) => (
                         <span className="manager-mini-chip" key={`${plan.project.id}-${assignment.user.id}`}>
-                          {assignment.user.displayName} • {assignment.action}
+                          {assignment.user.displayName} / {assignment.action}
                         </span>
                       ))}
                     </div>

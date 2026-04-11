@@ -13,6 +13,7 @@ import { apiFetch, fetchAuthorizedBlob, isAbortError } from "../lib/api";
 import { formatDisplayDateTime } from "../lib/date";
 import { useAuth } from "./auth-provider";
 import { ManagerDrawer, ManagerDrawerSection } from "./manager-ui";
+import { CheckCircleIcon, FileIcon, RefreshIcon, TimelineIcon } from "./ui-icons";
 
 type FilterDraft = {
   jobName: string;
@@ -70,7 +71,7 @@ function getBackupExportSummaryLine(resultSummary: Record<string, unknown> | nul
     typeof counts.dailyPrograms === "number" ? `${counts.dailyPrograms} program` : null
   ].filter(Boolean);
 
-  return parts.length ? parts.join(" • ") : null;
+  return parts.length ? parts.join(" / ") : null;
 }
 
 function getBackupExportIntegrity(resultSummary: Record<string, unknown> | null) {
@@ -489,64 +490,140 @@ export function ManagerJobsModule() {
     selectedExecution?.resultSummary ?? null,
     "summary"
   );
+  const previewExecution = selectedExecution ?? executions[0] ?? null;
+  const previewRestoreSummary = getRestorePreparationSummary(previewExecution?.resultSummary ?? null);
+  const jobSignalCards = [
+    {
+      label: "Calisan is",
+      value: `${stats.running}`,
+      detail: "Henuz tamamlanmamis execution kayitlari",
+      icon: RefreshIcon
+    },
+    {
+      label: "Export",
+      value: `${stats.backupExports}`,
+      detail: "Yedek manifest ureten kosular",
+      icon: FileIcon
+    },
+    {
+      label: "Restore check",
+      value: `${stats.restorePrepares}`,
+      detail: "Restore hazirlik dogrulama adimlari",
+      icon: CheckCircleIcon
+    }
+  ];
 
   return (
     <>
       <div className="manager-module manager-stack-layout">
-        <section className="manager-command-surface manager-command-surface-grid">
-          <div className="manager-command-copy">
-            <span className="manager-command-kicker">Job execution</span>
-            <h2 className="manager-block-title">Arka plan operasyonlarini izleyin</h2>
-            <p className="manager-block-copy">
-              Reminder ve materialize gibi kritik manager islerinin calisma sonucunu tek listeden okuyun.
-            </p>
+        <section className="manager-overview-hero">
+          <div className="manager-command-surface manager-overview-poster">
+            <div className="manager-command-copy">
+              <span className="manager-command-kicker">Job execution</span>
+              <h2 className="manager-block-title">Arka plan operasyonlarini saglik, artifact ve restore baglamiyla izleyin</h2>
+              <p className="manager-block-copy manager-block-copy-visible">
+                Execution kayitlari, yedek akislari ve restore check sonuclari tek operasyon panelinde toplandi.
+              </p>
+            </div>
+            <div className="manager-overview-highlights">
+              <div className="manager-inline-actions manager-inline-actions-wrap">
+                <Link className="button ghost" href="/dashboard/templates" scroll={false}>
+                  Template'lere Don
+                </Link>
+                <Link className="button ghost" href="/dashboard/tracking" scroll={false}>
+                  Takibi Ac
+                </Link>
+                <button
+                  className="button"
+                  disabled={exportingBackup}
+                  onClick={() => void createBackupExport()}
+                  type="button"
+                >
+                  {exportingBackup ? "Export Hazirlaniyor..." : "Backup Export"}
+                </button>
+              </div>
+              <div className="manager-inline-actions manager-inline-actions-wrap">
+                <input
+                  className="input"
+                  onChange={(event) =>
+                    setFilters((current) => ({ ...current, jobName: event.target.value }))
+                  }
+                  placeholder="Job ara"
+                  value={filters.jobName}
+                />
+                <select
+                  className="select"
+                  onChange={(event) =>
+                    setFilters((current) => ({
+                      ...current,
+                      status: event.target.value as FilterDraft["status"]
+                    }))
+                  }
+                  value={filters.status}
+                >
+                  <option value="">Tum durumlar</option>
+                  <option value="RUNNING">Calisiyor</option>
+                  <option value="SUCCEEDED">Basarili</option>
+                  <option value="FAILED">Hatali</option>
+                </select>
+                <button className="button" onClick={() => void applyFilters()} type="button">
+                  Filtreyi Uygula
+                </button>
+              </div>
+              <div className="manager-overview-spotlights">
+                {jobSignalCards.map((item) => {
+                  const Icon = item.icon;
+
+                  return (
+                    <article className="manager-overview-spotlight" key={item.label}>
+                      <span className="manager-overview-spotlight-icon" aria-hidden="true">
+                        <Icon />
+                      </span>
+                      <div>
+                        <span>{item.label}</span>
+                        <strong>{loading ? "..." : item.value}</strong>
+                        <p>{item.detail}</p>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
           </div>
-          <div className="manager-command-controls manager-command-controls-left">
-            <div className="manager-inline-actions">
-              <Link className="button ghost" href="/dashboard/templates" scroll={false}>
-                Template'lere Don
-              </Link>
-              <Link className="button ghost" href="/dashboard/tracking" scroll={false}>
-                Takibi Ac
-              </Link>
-              <button
-                className="button"
-                disabled={exportingBackup}
-                onClick={() => void createBackupExport()}
-                type="button"
-              >
-                {exportingBackup ? "Export Hazirlaniyor..." : "Backup Export"}
-              </button>
+
+          <aside className="manager-surface-card manager-overview-sidecar">
+            <div className="manager-section-head compact">
+              <div>
+                <span className="manager-section-kicker">Hizli durum</span>
+                <h3 className="manager-section-title">Execution odagi</h3>
+              </div>
+              <span className="manager-mini-chip">{lastUpdatedAt ? formatDisplayDateTime(lastUpdatedAt) : "-"}</span>
             </div>
-            <div className="manager-inline-actions">
-              <input
-                className="input"
-                onChange={(event) =>
-                  setFilters((current) => ({ ...current, jobName: event.target.value }))
-                }
-                placeholder="Job ara"
-                value={filters.jobName}
-              />
-              <select
-                className="select"
-                onChange={(event) =>
-                  setFilters((current) => ({
-                    ...current,
-                    status: event.target.value as FilterDraft["status"]
-                  }))
-                }
-                value={filters.status}
-              >
-                <option value="">Tum durumlar</option>
-                <option value="RUNNING">Calisiyor</option>
-                <option value="SUCCEEDED">Basarili</option>
-                <option value="FAILED">Hatali</option>
-              </select>
-              <button className="button" onClick={() => void applyFilters()} type="button">
-                Filtreyi Uygula
-              </button>
+
+            <div className="manager-overview-statuslist">
+              <article className={`manager-overview-status ${stats.failed ? "manager-overview-status-warn" : "manager-overview-status-ok"}`}>
+                <span className="manager-overview-status-icon" aria-hidden="true">
+                  <TimelineIcon />
+                </span>
+                <div>
+                  <strong>Liste sagligi</strong>
+                  <b>{stats.failed ? "Kontrol et" : "Stabil"}</b>
+                  <p>{stats.failed} hatali, {stats.running} calisan execution var</p>
+                </div>
+              </article>
+              <article className="manager-overview-status">
+                <span className="manager-overview-status-icon" aria-hidden="true">
+                  <CheckCircleIcon />
+                </span>
+                <div>
+                  <strong>Restore hazirligi</strong>
+                  <b>{previewRestoreSummary?.integrityVerified && previewRestoreSummary?.inventoryVerified ? "Hazir" : "Beklemede"}</b>
+                  <p>{previewExecution?.jobName ?? "Execution secildiginde detay gosterilir"}</p>
+                </div>
+              </article>
             </div>
-            <div className="manager-inline-actions">
+
+            <div className="manager-inline-actions manager-inline-actions-wrap">
               <button
                 className="button ghost"
                 onClick={() => void applyPreset({ jobName: "", status: "FAILED" })}
@@ -556,56 +633,30 @@ export function ManagerJobsModule() {
               </button>
               <button
                 className="button ghost"
-                onClick={() => void applyPreset({ jobName: "", status: "RUNNING" })}
-                type="button"
-              >
-                Sadece Calisan
-              </button>
-              <button
-                className="button ghost"
                 onClick={() => void applyPreset({ jobName: backupOpsFilterValue, status: "" })}
                 type="button"
               >
-                Sadece Backup Ops
+                Backup Ops
               </button>
-              <button
-                className="button ghost"
-                onClick={() => void applyPreset({ jobName: "system.backup-export", status: "" })}
-                type="button"
-              >
-                Sadece Export
+              <button className="button ghost" onClick={() => void applyPreset(emptyFilters)} type="button">
+                Temizle
               </button>
-              <button
-                className="button ghost"
-                onClick={() =>
-                  void applyPreset({ jobName: "system.backup-restore-prepare", status: "" })
-                }
-                type="button"
-              >
-                Sadece Restore Check
-              </button>
-              <button
-                className="button ghost"
-                onClick={() => void applyPreset(emptyFilters)}
-                type="button"
-              >
-                Filtreyi Temizle
-              </button>
-              <label className="toggle-row">
-                <span>Auto refresh</span>
-                <input
-                  checked={autoRefresh}
-                  onChange={(event) => setAutoRefresh(event.target.checked)}
-                  type="checkbox"
-                />
-              </label>
             </div>
-          </div>
+
+            <label className="toggle-row">
+              <span>Auto refresh</span>
+              <input
+                checked={autoRefresh}
+                onChange={(event) => setAutoRefresh(event.target.checked)}
+                type="checkbox"
+              />
+            </label>
+          </aside>
         </section>
 
         {message ? <div className="alert">{message}</div> : null}
 
-        <section className="manager-stat-ribbon manager-stat-ribbon-compact">
+        <section className="manager-stat-ribbon manager-stat-ribbon-compact manager-stat-ribbon-premium">
           <article className="manager-stat-card">
             <span>Kayit</span>
             <strong>{loading ? "..." : executions.length}</strong>
@@ -643,7 +694,8 @@ export function ManagerJobsModule() {
           </article>
         </section>
 
-        <section className="manager-surface-card">
+        <section className="manager-panel-split">
+          <section className="manager-surface-card">
           <div className="manager-section-head compact">
             <div>
               <span className="manager-section-kicker">Execution listesi</span>
@@ -652,12 +704,12 @@ export function ManagerJobsModule() {
             <span className="manager-mini-chip">{executions.length} kayit</span>
           </div>
 
-          {loading ? (
-            <div className="empty">Job execution listesi yukleniyor.</div>
-          ) : !executions.length ? (
-            <div className="empty">Filtreye uygun job execution kaydi bulunmuyor.</div>
-          ) : (
-            <div className="manager-feed-list">
+            {loading ? (
+              <div className="empty">Job execution listesi yukleniyor.</div>
+            ) : !executions.length ? (
+              <div className="empty">Filtreye uygun job execution kaydi bulunmuyor.</div>
+            ) : (
+              <div className="manager-feed-list">
               {executions.map((execution) => {
                 const backupExportPath = getBackupExportPath(execution.resultSummary);
                 const backupExport = isBackupExportJob(execution.jobName);
@@ -689,9 +741,7 @@ export function ManagerJobsModule() {
                     <div className="manager-feed-topline">
                       <div>
                         <strong>{execution.jobName}</strong>
-                        <p className="muted">
-                          {execution.scope ?? "Scope yok"} • {execution.actor?.displayName ?? "Sistem"}
-                        </p>
+                        <p className="muted">{execution.scope ?? "Scope yok"} / {execution.actor?.displayName ?? "Sistem"}</p>
                       </div>
                       <span className="manager-mini-chip">
                         {formatDisplayDateTime(execution.startedAt)}
@@ -754,7 +804,7 @@ export function ManagerJobsModule() {
                             : "eksik yok"
                         ]
                           .filter(Boolean)
-                          .join(" • ")}
+                          .join(" / ")}
                       </p>
                     ) : null}
                     {backupExport ? (
@@ -827,8 +877,79 @@ export function ManagerJobsModule() {
                   </button>
                 );
               })}
+              </div>
+            )}
+          </section>
+
+          <aside className="manager-surface-card manager-focus-panel">
+            <div className="manager-section-head compact">
+              <div>
+                <span className="manager-section-kicker">Secili execution</span>
+                <h3 className="manager-section-title">Hizli okuma paneli</h3>
+              </div>
+              <span className="manager-mini-chip">
+                {previewExecution ? formatStatus(previewExecution.status) : "Kayit yok"}
+              </span>
             </div>
-          )}
+
+            {!previewExecution ? (
+              <div className="empty">Liste secimi olmadigi icin execution ozeti gosterilemiyor.</div>
+            ) : (
+              <div className="manager-focus-stack">
+                <div className="manager-focus-lead">
+                  <strong>{previewExecution.jobName}</strong>
+                  <p className="muted">
+                    {previewExecution.actor?.displayName ?? "Sistem"} / {previewExecution.triggerSource}
+                  </p>
+                </div>
+
+                <div className="manager-sheet-grid">
+                  <div className="manager-sheet-card">
+                    <span>Durum</span>
+                    <strong>{formatStatus(previewExecution.status)}</strong>
+                  </div>
+                  <div className="manager-sheet-card">
+                    <span>Sure</span>
+                    <strong>{formatDuration(previewExecution.startedAt, previewExecution.finishedAt)}</strong>
+                  </div>
+                  <div className="manager-sheet-card">
+                    <span>Hedef</span>
+                    <strong>{previewExecution.targetDate ?? "-"}</strong>
+                  </div>
+                  <div className="manager-sheet-card">
+                    <span>Scope</span>
+                    <strong>{previewExecution.scope ?? "-"}</strong>
+                  </div>
+                </div>
+
+                <div className="manager-overview-note">
+                  <strong>Artifact ve restore sinyali</strong>
+                  <p>{getBackupExportSummaryLine(previewExecution.resultSummary) ?? "Bu execution icin ozet artifact bilgisi yok."}</p>
+                  <p>
+                    {previewRestoreSummary
+                      ? `Integrity ${previewRestoreSummary.integrityVerified ? "OK" : "FAIL"} / Inventory ${previewRestoreSummary.inventoryVerified ? "OK" : "FAIL"}`
+                      : "Restore preparation ozeti yok."}
+                  </p>
+                </div>
+
+                <div className="manager-overview-actions">
+                  <button
+                    className="button"
+                    onClick={() => {
+                      setSelectedExecution(previewExecution);
+                      setDetailOpen(true);
+                    }}
+                    type="button"
+                  >
+                    Detayi Ac
+                  </button>
+                  <button className="button ghost" onClick={() => void fetchExecutions()} type="button">
+                    Listeyi Yenile
+                  </button>
+                </div>
+              </div>
+            )}
+          </aside>
         </section>
       </div>
 
@@ -1021,7 +1142,7 @@ export function ManagerJobsModule() {
                       <div className="stack">
                         {selectedRestorePreparation.artifacts.map((artifact) => (
                           <p className="muted" key={`${artifact.type}-${artifact.relativePath}`}>
-                            Artifact [{formatArtifactType(artifact.type)}]: {artifact.relativePath} •{" "}
+                            Artifact [{formatArtifactType(artifact.type)}]: {artifact.relativePath} /{" "}
                             {artifact.exists ? "OK" : "Eksik"}
                           </p>
                         ))}

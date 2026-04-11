@@ -27,7 +27,7 @@ export function ManagerAccordionSection({
   children
 }: ManagerAccordionSectionProps) {
   return (
-    <section className={`manager-accordion glass ${isOpen ? "open" : ""}`}>
+    <section className={`manager-accordion ${isOpen ? "open" : ""}`}>
       <button
         aria-controls={`${id}-panel`}
         aria-expanded={isOpen}

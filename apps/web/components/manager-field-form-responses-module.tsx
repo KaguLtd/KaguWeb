@@ -7,6 +7,7 @@ import { apiFetch, isAbortError } from "../lib/api";
 import { formatDisplayDateTime } from "../lib/date";
 import { useAuth } from "./auth-provider";
 import { ManagerDrawer, ManagerDrawerSection } from "./manager-ui";
+import { FileIcon, TimelineIcon, UsersIcon } from "./ui-icons";
 
 type ResponseSummary = {
   id: string;
@@ -162,19 +163,42 @@ export function ManagerFieldFormResponsesModule() {
     }
   }
 
+  const previewResponse = selectedResponse ?? responses[0] ?? null;
+  const responseSignalCards = [
+    {
+      label: "Cevap",
+      value: `${responses.length}`,
+      detail: "Mevcut filtre sonucu",
+      icon: FileIcon
+    },
+    {
+      label: "Template",
+      value: `${new Set(responses.map((response) => response.templateId)).size}`,
+      detail: "Farkli form kaynagi",
+      icon: TimelineIcon
+    },
+    {
+      label: "Personel",
+      value: `${new Set(responses.map((response) => response.actorId)).size}`,
+      detail: "Cevap yazan saha personeli",
+      icon: UsersIcon
+    }
+  ];
+
   return (
     <>
       <div className="manager-module manager-stack-layout">
-        <section className="manager-command-surface manager-command-surface-grid">
+        <section className="manager-overview-hero">
+          <div className="manager-command-surface manager-overview-poster">
           <div className="manager-command-copy">
             <span className="manager-command-kicker">Form cevaplari</span>
             <h2 className="manager-block-title">Kaydedilen saha cevaplarini inceleyin</h2>
-            <p className="manager-block-copy">
+            <p className="manager-block-copy manager-block-copy-visible">
               Template, proje ve personel bazinda filtreleyin; sonra detay drawer’inda payload’i okuyun.
             </p>
           </div>
-          <div className="manager-command-controls manager-command-controls-left">
-            <div className="manager-inline-actions">
+          <div className="manager-overview-highlights">
+            <div className="manager-inline-actions manager-inline-actions-wrap">
               <Link className="button ghost" href="/dashboard/forms" scroll={false}>
                 Formlara Don
               </Link>
@@ -224,12 +248,70 @@ export function ManagerFieldFormResponsesModule() {
                 Filtreyi Uygula
               </button>
             </div>
+            <div className="manager-overview-spotlights">
+              {responseSignalCards.map((item) => {
+                const Icon = item.icon;
+
+                return (
+                  <article className="manager-overview-spotlight" key={item.label}>
+                    <span className="manager-overview-spotlight-icon" aria-hidden="true">
+                      <Icon />
+                    </span>
+                    <div>
+                      <span>{item.label}</span>
+                      <strong>{loading ? "..." : item.value}</strong>
+                      <p>{item.detail}</p>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
           </div>
+          </div>
+
+          <aside className="manager-surface-card manager-overview-sidecar">
+            <div className="manager-section-head compact">
+              <div>
+                <span className="manager-section-kicker">Secili cevap</span>
+                <h3 className="manager-section-title">Payload ozeti</h3>
+              </div>
+              <span className="manager-mini-chip">{previewResponse ? `v${previewResponse.templateVersionNumber}` : "-"}</span>
+            </div>
+
+            <div className="manager-overview-statuslist">
+              <article className="manager-overview-status manager-overview-status-ok">
+                <span className="manager-overview-status-icon" aria-hidden="true">
+                  <FileIcon />
+                </span>
+                <div>
+                  <strong>Template</strong>
+                  <b>{previewResponse?.templateName ?? "Secim yok"}</b>
+                  <p>{previewResponse?.templateVersionTitle ?? "Versiyon bilgisi bekleniyor"}</p>
+                </div>
+              </article>
+              <article className="manager-overview-status">
+                <span className="manager-overview-status-icon" aria-hidden="true">
+                  <UsersIcon />
+                </span>
+                <div>
+                  <strong>Kaydeden</strong>
+                  <b>{previewResponse?.actor.displayName ?? "-"}</b>
+                  <p>{previewResponse?.projectName ?? "Proje baglami bekleniyor"}</p>
+                </div>
+              </article>
+            </div>
+
+            <div className="manager-overview-note">
+              <strong>{previewResponse?.templateName ?? "Response secin"}</strong>
+              <p>{previewResponse ? formatDisplayDateTime(previewResponse.createdAt) : "Kayit zamani bekleniyor."}</p>
+              <p>{previewResponse?.projectEntryId ? "Timeline bagli cevap." : "Dogrudan response kaydi."}</p>
+            </div>
+          </aside>
         </section>
 
         {message ? <div className="alert">{message}</div> : null}
 
-        <section className="manager-stat-ribbon manager-stat-ribbon-compact">
+        <section className="manager-stat-ribbon manager-stat-ribbon-compact manager-stat-ribbon-premium">
           <article className="manager-stat-card">
             <span>Cevap</span>
             <strong>{loading ? "..." : responses.length}</strong>
@@ -252,7 +334,8 @@ export function ManagerFieldFormResponsesModule() {
           </article>
         </section>
 
-        <section className="manager-surface-card">
+        <section className="manager-panel-split">
+          <section className="manager-surface-card">
           <div className="manager-section-head compact">
             <div>
               <span className="manager-section-kicker">Response listesi</span>
@@ -278,7 +361,7 @@ export function ManagerFieldFormResponsesModule() {
                     <div>
                       <strong>{response.templateName}</strong>
                       <p className="muted">
-                        {response.projectName} • {response.actor.displayName}
+                        {response.projectName} / {response.actor.displayName}
                       </p>
                     </div>
                     <span className="manager-mini-chip">
@@ -298,6 +381,56 @@ export function ManagerFieldFormResponsesModule() {
               ))}
             </div>
           )}
+          </section>
+
+          <aside className="manager-surface-card manager-focus-panel">
+            <div className="manager-section-head compact">
+              <div>
+                <span className="manager-section-kicker">Hizli okuma</span>
+                <h3 className="manager-section-title">Secili response paneli</h3>
+              </div>
+              <span className="manager-mini-chip">{previewResponse?.projectName ?? "Kayit yok"}</span>
+            </div>
+
+            {!previewResponse ? (
+              <div className="empty">Secili response olmadigi icin onizleme gosterilemiyor.</div>
+            ) : (
+              <div className="manager-focus-stack">
+                <div className="manager-focus-lead">
+                  <strong>{previewResponse.templateName}</strong>
+                  <p className="muted">{previewResponse.projectName}</p>
+                </div>
+
+                <div className="manager-sheet-grid">
+                  <div className="manager-sheet-card">
+                    <span>Versiyon</span>
+                    <strong>{`v${previewResponse.templateVersionNumber}`}</strong>
+                  </div>
+                  <div className="manager-sheet-card">
+                    <span>Personel</span>
+                    <strong>{previewResponse.actor.displayName}</strong>
+                  </div>
+                  <div className="manager-sheet-card">
+                    <span>Timeline</span>
+                    <strong>{previewResponse.projectEntryId ? "Bagli" : "Yok"}</strong>
+                  </div>
+                  <div className="manager-sheet-card">
+                    <span>Zaman</span>
+                    <strong>{formatDisplayDateTime(previewResponse.createdAt)}</strong>
+                  </div>
+                </div>
+
+                <div className="manager-overview-actions">
+                  <button className="button" onClick={() => void openResponseDetail(previewResponse.id)} type="button">
+                    Detayi Ac
+                  </button>
+                  <button className="button ghost" onClick={() => setFilters(emptyFilters)} type="button">
+                    Filtreleri Temizle
+                  </button>
+                </div>
+              </div>
+            )}
+          </aside>
         </section>
       </div>
 
@@ -325,7 +458,7 @@ export function ManagerFieldFormResponsesModule() {
                     </tr>
                     <tr>
                       <th>Versiyon</th>
-                      <td>{`v${selectedResponse.templateVersionNumber} • ${selectedResponse.templateVersionTitle}`}</td>
+                      <td>{`v${selectedResponse.templateVersionNumber} / ${selectedResponse.templateVersionTitle}`}</td>
                     </tr>
                     <tr>
                       <th>Proje</th>

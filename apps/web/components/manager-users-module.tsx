@@ -6,6 +6,7 @@ import { apiFetch } from "../lib/api";
 import { formatDisplayDate } from "../lib/date";
 import { useAuth } from "./auth-provider";
 import { ManagerDrawer, ManagerDrawerSection } from "./manager-ui";
+import { DeviceIcon, KeyIcon, PowerIcon, UsersIcon } from "./ui-icons";
 
 type UserFormState = {
   displayName: string;
@@ -68,6 +69,27 @@ export function ManagerUsersModule() {
   const totalActive = users.filter((user) => user.isActive).length;
   const totalField = users.filter((user) => user.role === "FIELD").length;
   const totalManagers = users.filter((user) => user.role === "MANAGER").length;
+  const previewUser = selectedUser ?? users.find((user) => user.id === selectedUserId) ?? users[0] ?? null;
+  const userSignalCards = [
+    {
+      label: "Aktif hesap",
+      value: `${totalActive}`,
+      detail: "Sistemde calisabilir durumda olan hesaplar",
+      icon: PowerIcon
+    },
+    {
+      label: "Saha rolu",
+      value: `${totalField}`,
+      detail: "Mobil operasyon icin ayrilmis personel",
+      icon: UsersIcon
+    },
+    {
+      label: "Cihaz kaydi",
+      value: `${users.reduce((sum, user) => sum + (user.subscriptionCount ?? 0), 0)}`,
+      detail: "Push ve cihaz baglanti toplami",
+      icon: DeviceIcon
+    }
+  ];
 
   useEffect(() => {
     if (!token) {
@@ -106,6 +128,16 @@ export function ManagerUsersModule() {
       setDetailMessage(null);
     }
   }, [detailDrawerOpen]);
+
+  useEffect(() => {
+    if (!users.length) {
+      setSelectedUserId(null);
+      return;
+    }
+    setSelectedUserId((current) =>
+      current && users.some((user) => user.id === current) ? current : users[0].id
+    );
+  }, [users]);
 
   async function refreshUsers(currentToken: string) {
     const params = new URLSearchParams();
@@ -254,52 +286,122 @@ export function ManagerUsersModule() {
   return (
     <>
       <div className="manager-module manager-stack-layout">
-        <section className="manager-command-surface manager-command-surface-grid">
-          <div className="manager-command-copy">
-            <span className="manager-command-kicker">Kullanicilar</span>
-            <h2 className="manager-block-title">Ekip hesaplari</h2>
-            <p className="manager-block-copy">
-              Roller, kullanilabilirlik ve saha kapasitesini ayni listede dengeleyin.
-            </p>
-          </div>
-          <div className="manager-command-controls manager-command-controls-left">
-            <div className="manager-inline-actions">
-              <input
-                className="input"
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Ad veya kullanici ara"
-                value={query}
-              />
-              <select
-                className="select"
-                onChange={(event) => setRoleFilter((event.target.value as UserRole | "") || "")}
-                value={roleFilter}
-              >
-                <option value="">Tum roller</option>
-                <option value="FIELD">Saha</option>
-                <option value="MANAGER">Yonetici</option>
-              </select>
-              <select
-                className="select"
-                onChange={(event) => setStatusFilter(event.target.value as "active" | "inactive" | "all")}
-                value={statusFilter}
-              >
-                <option value="active">Aktif</option>
-                <option value="inactive">Pasif</option>
-                <option value="all">Tum hesaplar</option>
-              </select>
+        <section className="manager-overview-hero">
+          <div className="manager-command-surface manager-overview-poster">
+            <div className="manager-command-copy">
+              <span className="manager-command-kicker">Kullanicilar</span>
+              <h2 className="manager-block-title">Rol, cihaz ve saha kapasitesini okunur bir ekip dizininde yonet</h2>
+              <p className="manager-block-copy manager-block-copy-visible">
+                Hesap durumu, aktif atama ve oturum sayilari artik taranabilir bir roster yapisinda.
+              </p>
             </div>
-            <div className="manager-inline-actions">
+
+            <div className="manager-overview-highlights">
+              <div className="manager-inline-actions manager-inline-actions-wrap">
+                <input
+                  className="input"
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Ad veya kullanici ara"
+                  value={query}
+                />
+                <select
+                  className="select"
+                  onChange={(event) => setRoleFilter((event.target.value as UserRole | "") || "")}
+                  value={roleFilter}
+                >
+                  <option value="">Tum roller</option>
+                  <option value="FIELD">Saha</option>
+                  <option value="MANAGER">Yonetici</option>
+                </select>
+                <select
+                  className="select"
+                  onChange={(event) => setStatusFilter(event.target.value as "active" | "inactive" | "all")}
+                  value={statusFilter}
+                >
+                  <option value="active">Aktif</option>
+                  <option value="inactive">Pasif</option>
+                  <option value="all">Tum hesaplar</option>
+                </select>
+              </div>
+
+              <div className="manager-overview-spotlights">
+                {userSignalCards.map((item) => {
+                  const Icon = item.icon;
+
+                  return (
+                    <article className="manager-overview-spotlight" key={item.label}>
+                      <span className="manager-overview-spotlight-icon" aria-hidden="true">
+                        <Icon />
+                      </span>
+                      <div>
+                        <span>{item.label}</span>
+                        <strong>{loading ? "..." : item.value}</strong>
+                        <p>{item.detail}</p>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <aside className="manager-surface-card manager-overview-sidecar">
+            <div className="manager-section-head compact">
+              <div>
+                <span className="manager-section-kicker">Secili hesap</span>
+                <h3 className="manager-section-title">Ekip ozeti</h3>
+              </div>
+              <span className="manager-mini-chip">{roleFilter || "Tum roller"}</span>
+            </div>
+
+            <div className="manager-overview-note">
+              <strong>{previewUser?.displayName ?? "Kullanici secilmedi"}</strong>
+              <p>{previewUser ? `@${previewUser.username}` : "Filtre sonucu hesap bulunmuyor."}</p>
+              <p>{previewUser ? `${roleLabel(previewUser.role)} rolu ile listeleniyor.` : "Yeni bir hesap olusturabilirsiniz."}</p>
+            </div>
+
+            <div className="manager-overview-statuslist">
+              <article className={`manager-overview-status ${previewUser?.isActive ? "manager-overview-status-ok" : "manager-overview-status-warn"}`}>
+                <span className="manager-overview-status-icon" aria-hidden="true">
+                  <PowerIcon />
+                </span>
+                <div>
+                  <strong>Durum</strong>
+                  <b>{previewUser?.isActive ? "Aktif" : "Pasif"}</b>
+                  <p>{previewUser ? `${previewUser.assignmentCount ?? 0} aktif atama` : "Durum verisi yok"}</p>
+                </div>
+              </article>
+              <article className="manager-overview-status">
+                <span className="manager-overview-status-icon" aria-hidden="true">
+                  <KeyIcon />
+                </span>
+                <div>
+                  <strong>Oturum</strong>
+                  <b>{previewUser?.openSessionCount ?? 0}</b>
+                  <p>{previewUser ? `${previewUser.subscriptionCount ?? 0} cihaz kaydi` : "Oturum verisi yok"}</p>
+                </div>
+              </article>
+            </div>
+
+            <div className="manager-overview-actions">
               <button className="button" onClick={() => setCreateDrawerOpen(true)} type="button">
                 Yeni Kullanici
               </button>
+              <button
+                className="button ghost"
+                disabled={!previewUser}
+                onClick={() => previewUser && openUserDetail(previewUser.id)}
+                type="button"
+              >
+                Hesabi Ac
+              </button>
             </div>
-          </div>
+          </aside>
         </section>
 
         {message ? <div className="alert">{message}</div> : null}
 
-        <section className="manager-stat-ribbon manager-stat-ribbon-compact">
+        <section className="manager-stat-ribbon manager-stat-ribbon-compact manager-stat-ribbon-premium">
           <article className="manager-stat-card">
             <span>Toplam kayit</span>
             <strong>{loading ? "..." : users.length}</strong>
@@ -322,58 +424,134 @@ export function ManagerUsersModule() {
           </article>
         </section>
 
-        <section className="manager-surface-card">
-          <div className="manager-section-head compact">
-            <div>
-              <span className="manager-section-kicker">Kullanici listesi</span>
-              <h3 className="manager-section-title">Tablo gorunumu</h3>
+        <section className="manager-panel-split">
+          <section className="manager-surface-card">
+            <div className="manager-section-head compact">
+              <div>
+                <span className="manager-section-kicker">Kullanici listesi</span>
+                <h3 className="manager-section-title">Ekip rosteri</h3>
+              </div>
+              <span className="manager-mini-chip">
+                {loading ? "Yukleniyor..." : `${users.length} hesap`}
+              </span>
             </div>
-            <span className="manager-mini-chip">
-              {loading ? "Yukleniyor..." : `${users.length} hesap`}
-            </span>
-          </div>
 
-          {!users.length ? (
-            <div className="empty">Filtreye uygun kullanici bulunamadi.</div>
-          ) : (
-            <div className="manager-table-wrap">
-              <table className="manager-table">
-                <thead>
-                  <tr>
-                    <th>Ad Soyad</th>
-                    <th>Kullanici</th>
-                    <th>Rol</th>
-                    <th>Durum</th>
-                    <th>Aktif Atama</th>
-                    <th>Acik Oturum</th>
-                    <th>Kayit Tarihi</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((user) => (
-                    <tr className="manager-table-clickable" key={user.id} onClick={() => openUserDetail(user.id)}>
-                      <td>
-                        <div className="manager-table-primary">
-                          <strong>{user.displayName}</strong>
-                          <span>{user.subscriptionCount ?? 0} cihaz kaydi</span>
-                        </div>
-                      </td>
-                      <td>@{user.username}</td>
-                      <td>{roleLabel(user.role)}</td>
-                      <td>
+            {!users.length ? (
+              <div className="empty">Filtreye uygun kullanici bulunamadi.</div>
+            ) : (
+              <div className="manager-entity-list">
+                {users.map((user) => (
+                  <article
+                    className={`manager-entity-row ${selectedUserId === user.id ? "is-selected" : ""}`}
+                    key={user.id}
+                    onClick={() => setSelectedUserId(user.id)}
+                  >
+                    <div className="manager-entity-headline">
+                      <div className="manager-table-primary">
+                        <strong>{user.displayName}</strong>
+                        <span>@{user.username}</span>
+                      </div>
+                      <div className="manager-directory-meta">
                         <span className={`manager-inline-badge ${user.isActive ? "is-positive" : "is-muted"}`}>
                           {user.isActive ? "Aktif" : "Pasif"}
                         </span>
-                      </td>
-                      <td>{user.assignmentCount ?? 0}</td>
-                      <td>{user.openSessionCount ?? 0}</td>
-                      <td>{formatDisplayDate(user.createdAt)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        <span className={`manager-inline-badge ${user.role === "FIELD" ? "is-info" : "is-warn"}`}>
+                          {roleLabel(user.role)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="manager-entity-side">
+                      <p className="muted">
+                        {user.assignmentCount ?? 0} aktif atama / {user.openSessionCount ?? 0} acik oturum / {user.subscriptionCount ?? 0} cihaz
+                      </p>
+                      <div className="manager-directory-meta">
+                        <span className="manager-mini-chip">{formatDisplayDate(user.createdAt)}</span>
+                      </div>
+                    </div>
+
+                    <div className="manager-entity-actions">
+                      <button
+                        className="button ghost"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setSelectedUserId(user.id);
+                        }}
+                        type="button"
+                      >
+                        Sec
+                      </button>
+                      <button
+                        className="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openUserDetail(user.id);
+                        }}
+                        type="button"
+                      >
+                        Hesabi Ac
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <aside className="manager-surface-card manager-focus-panel">
+            <div className="manager-section-head compact">
+              <div>
+                <span className="manager-section-kicker">Roster notu</span>
+                <h3 className="manager-section-title">Hizli okuma paneli</h3>
+              </div>
+              <span className="manager-mini-chip">{previewUser ? roleLabel(previewUser.role) : "Kayit yok"}</span>
             </div>
-          )}
+
+            {!previewUser ? (
+              <div className="empty">Secilecek bir ekip kaydi bulunmuyor.</div>
+            ) : (
+              <div className="manager-focus-stack">
+                <div className="manager-focus-lead">
+                  <strong>{previewUser.displayName}</strong>
+                  <p className="muted">@{previewUser.username}</p>
+                </div>
+
+                <div className="manager-sheet-grid">
+                  <div className="manager-sheet-card">
+                    <span>Durum</span>
+                    <strong>{previewUser.isActive ? "Aktif" : "Pasif"}</strong>
+                  </div>
+                  <div className="manager-sheet-card">
+                    <span>Rol</span>
+                    <strong>{roleLabel(previewUser.role)}</strong>
+                  </div>
+                  <div className="manager-sheet-card">
+                    <span>Atama</span>
+                    <strong>{previewUser.assignmentCount ?? 0}</strong>
+                  </div>
+                  <div className="manager-sheet-card">
+                    <span>Oturum</span>
+                    <strong>{previewUser.openSessionCount ?? 0}</strong>
+                  </div>
+                </div>
+
+                <div className="manager-overview-note">
+                  <strong>Kayit tarihi</strong>
+                  <p>{formatDisplayDate(previewUser.createdAt)}</p>
+                  <p>{previewUser.subscriptionCount ?? 0} cihaz baglantisi bu hesapla iliskili.</p>
+                </div>
+
+                <div className="manager-overview-actions">
+                  <button className="button" onClick={() => openUserDetail(previewUser.id)} type="button">
+                    Detay Cekmecesi
+                  </button>
+                  <button className="button ghost" onClick={() => setCreateDrawerOpen(true)} type="button">
+                    Yeni Hesap
+                  </button>
+                </div>
+              </div>
+            )}
+          </aside>
         </section>
       </div>
 

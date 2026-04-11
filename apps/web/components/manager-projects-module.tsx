@@ -15,6 +15,7 @@ import { ManagerDrawer, ManagerDrawerSection } from "./manager-ui";
 import { useDialogBehavior } from "./dialog-behavior";
 import { MapPicker } from "./map-picker";
 import { TrackingMap } from "./tracking-map";
+import { FileIcon, FolderIcon, MapPinIcon, TimelineIcon } from "./ui-icons";
 
 type ProjectStatusFilter = "active" | "archived" | "all";
 type ProjectEditorMode = "create" | "edit";
@@ -499,37 +500,129 @@ export function ManagerProjectsModule() {
   const activeProjects = projects.filter((project) => !project.isArchived).length;
   const archivedProjects = projects.filter((project) => project.isArchived).length;
   const mappedProjects = projects.filter((project) => project.locationLabel || project.latitude !== null).length;
+  const listPreviewProject =
+    focusProject ?? projects.find((project) => project.id === selectedProjectId) ?? projects[0] ?? null;
+  const projectSignalCards = [
+    {
+      label: "Aktif klasor",
+      value: `${activeProjects}`,
+      detail: "Sahada kullanilan canli proje kayitlari",
+      icon: FolderIcon
+    },
+    {
+      label: "Konumlu proje",
+      value: `${mappedProjects}`,
+      detail: "Harita ve rota akisina baglanabilen klasorler",
+      icon: MapPinIcon
+    },
+    {
+      label: "Dosya yogunlugu",
+      value: `${projects.reduce((sum, project) => sum + project.mainFileCount, 0)}`,
+      detail: "Main dosya havuzu secili filtre icin hesaplandi",
+      icon: FileIcon
+    }
+  ];
 
   return (
     <>
       <div className="manager-module manager-stack-layout">
-        <section className="manager-command-surface manager-command-surface-grid">
-          <div className="manager-command-copy">
-            <span className="manager-command-kicker">Projeler</span>
-            <h2 className="manager-block-title">Proje klasorlerini yonet</h2>
-            <p className="manager-block-copy">
-              Cari, konum, dosya ve gecmis hareketleri ayni kayit yuzeyinde toparlayin.
-            </p>
-          </div>
-          <div className="manager-command-controls manager-command-controls-left">
-            <div className="manager-inline-actions">
-              <input
-                className="input"
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Proje ara"
-                value={query}
-              />
-              <select
-                className="select"
-                onChange={(event) => setStatusFilter(event.target.value as ProjectStatusFilter)}
-                value={statusFilter}
-              >
-                <option value="active">Aktif</option>
-                <option value="archived">Arsiv</option>
-                <option value="all">Tum projeler</option>
-              </select>
+        <section className="manager-overview-hero">
+          <div className="manager-command-surface manager-overview-poster">
+            <div className="manager-command-copy">
+              <span className="manager-command-kicker">Projeler</span>
+              <h2 className="manager-block-title">Kayit, konum ve dosya akislarini tek workspace'te yonet</h2>
+              <p className="manager-block-copy manager-block-copy-visible">
+                Cari iliskisi, dosya yogunlugu ve saha izi ayni klasor yapisi uzerinden okunuyor.
+              </p>
             </div>
-            <div className="manager-inline-actions manager-actions-stack">
+
+            <div className="manager-overview-highlights">
+              <div className="manager-inline-actions manager-inline-actions-wrap">
+                <input
+                  className="input"
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Proje ara"
+                  value={query}
+                />
+                <select
+                  className="select"
+                  onChange={(event) => setStatusFilter(event.target.value as ProjectStatusFilter)}
+                  value={statusFilter}
+                >
+                  <option value="active">Aktif</option>
+                  <option value="archived">Arsiv</option>
+                  <option value="all">Tum projeler</option>
+                </select>
+              </div>
+
+              <div className="manager-overview-spotlights">
+                {projectSignalCards.map((item) => {
+                  const Icon = item.icon;
+
+                  return (
+                    <article className="manager-overview-spotlight" key={item.label}>
+                      <span className="manager-overview-spotlight-icon" aria-hidden="true">
+                        <Icon />
+                      </span>
+                      <div>
+                        <span>{item.label}</span>
+                        <strong>{loading ? "..." : item.value}</strong>
+                        <p>{item.detail}</p>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <aside className="manager-surface-card manager-overview-sidecar">
+            <div className="manager-section-head compact">
+              <div>
+                <span className="manager-section-kicker">Secili odak</span>
+                <h3 className="manager-section-title">Proje sinyali</h3>
+              </div>
+              <span className="manager-mini-chip">{statusFilter}</span>
+            </div>
+
+            <div className="manager-overview-note">
+              <strong>{listPreviewProject?.name ?? "Proje secilmedi"}</strong>
+              <p>
+                {listPreviewProject
+                  ? listPreviewProject.customer?.name ?? "Cari iliskisi bekleniyor"
+                  : "Filtre sonucu proje bulunmuyor."}
+              </p>
+              <p>
+                {listPreviewProject
+                  ? listPreviewProject.locationLabel ?? "Konum etiketi henuz tanimli degil."
+                  : "Yeni proje olusturarak klasor akisina baslayin."}
+              </p>
+            </div>
+
+            <div className="manager-overview-statuslist">
+              <article className="manager-overview-status manager-overview-status-ok">
+                <span className="manager-overview-status-icon" aria-hidden="true">
+                  <FileIcon />
+                </span>
+                <div>
+                  <strong>Main dosya</strong>
+                  <b>{listPreviewProject?.mainFileCount ?? 0}</b>
+                  <p>Secili klasorun ana dosya sayisi</p>
+                </div>
+              </article>
+              <article className="manager-overview-status">
+                <span className="manager-overview-status-icon" aria-hidden="true">
+                  <TimelineIcon />
+                </span>
+                <div>
+                  <strong>Timeline</strong>
+                  <b>{listPreviewProject?.timelineEntryCount ?? 0}</b>
+                  <p>Kayda dusmus operasyon hareketi</p>
+                </div>
+              </article>
+            </div>
+
+            <div className="manager-overview-actions">
               <button className="button ghost" onClick={() => setCustomerDrawerOpen(true)} type="button">
                 Cari Ac
               </button>
@@ -537,12 +630,12 @@ export function ManagerProjectsModule() {
                 Yeni Proje
               </button>
             </div>
-          </div>
+          </aside>
         </section>
 
         {message ? <div className="alert">{message}</div> : null}
 
-        <section className="manager-stat-ribbon manager-stat-ribbon-compact">
+        <section className="manager-stat-ribbon manager-stat-ribbon-compact manager-stat-ribbon-premium">
           <article className="manager-stat-card">
             <span>Liste sonucu</span>
             <strong>{loading ? "..." : projects.length}</strong>
@@ -565,70 +658,147 @@ export function ManagerProjectsModule() {
           </article>
         </section>
 
-        <section className="manager-surface-card">
-          <div className="manager-section-head compact">
-            <div>
-              <span className="manager-section-kicker">Tum proje klasorleri</span>
-              <h3 className="manager-section-title">Liste gorunumu</h3>
+        <section className="manager-panel-split">
+          <section className="manager-surface-card">
+            <div className="manager-section-head compact">
+              <div>
+                <span className="manager-section-kicker">Tum proje klasorleri</span>
+                <h3 className="manager-section-title">Calisma listesi</h3>
+              </div>
+              <span className="manager-mini-chip">
+                {loading ? "Yukleniyor..." : `${projects.length} proje`}
+              </span>
             </div>
-            <span className="manager-mini-chip">
-              {loading ? "Yukleniyor..." : `${projects.length} proje`}
-            </span>
-          </div>
 
-          {!projects.length ? (
-            <div className="empty">Filtreye uygun proje bulunmuyor.</div>
-          ) : (
-            <div className="manager-table-wrap">
-              <table className="manager-table">
-                <thead>
-                  <tr>
-                    <th>Proje</th>
-                    <th>Cari</th>
-                    <th>Konum</th>
-                    <th>Durum</th>
-                    <th>Main Dosya</th>
-                    <th>Timeline</th>
-                    <th>Guncelleme</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {projects.map((project) => (
-                    <tr
-                      className="manager-table-clickable"
-                      key={project.id}
-                      onClick={() => void openProjectDrawer(project.id)}
-                    >
-                      <td>
-                        <div className="manager-table-primary">
-                          <strong>{project.name}</strong>
-                          <span>{project.code ?? "Kod tanimli degil"}</span>
-                        </div>
-                      </td>
-                      <td>{project.customer?.name ?? "-"}</td>
-                      <td>
-                        <span
-                          className={`manager-location-indicator ${
-                            project.locationLabel ? "has-location" : "missing-location"
-                          }`}
-                        >
-                          {project.locationLabel ? "\u2713" : "-"}
-                        </span>
-                      </td>
-                      <td>
+            {!projects.length ? (
+              <div className="empty">Filtreye uygun proje bulunmuyor.</div>
+            ) : (
+              <div className="manager-entity-list">
+                {projects.map((project) => (
+                  <article
+                    className={`manager-entity-row ${selectedProjectId === project.id ? "is-selected" : ""}`}
+                    key={project.id}
+                    onClick={() => setSelectedProjectId(project.id)}
+                  >
+                    <div className="manager-entity-headline">
+                      <div className="manager-table-primary">
+                        <strong>{project.name}</strong>
+                        <span>{project.code ?? "Kod tanimli degil"}</span>
+                      </div>
+                      <div className="manager-directory-meta">
                         <span className={`manager-inline-badge ${project.isArchived ? "is-muted" : "is-positive"}`}>
                           {project.isArchived ? "Arsiv" : "Aktif"}
                         </span>
-                      </td>
-                      <td>{project.mainFileCount}</td>
-                      <td>{project.timelineEntryCount ?? 0}</td>
-                      <td>{formatDisplayDateTime(project.updatedAt)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        <span className={`manager-inline-badge ${project.locationLabel ? "is-positive" : "is-warn"}`}>
+                          {project.locationLabel ? "Konum hazir" : "Konum eksik"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="manager-entity-side">
+                      <p className="muted">
+                        {project.customer?.name ?? "Cari iliskisi yok"}
+                        {project.locationLabel ? ` / ${project.locationLabel}` : ""}
+                      </p>
+                      <div className="manager-directory-meta">
+                        <span className="manager-mini-chip">{project.mainFileCount} dosya</span>
+                        <span className="manager-mini-chip">{project.timelineEntryCount ?? 0} hareket</span>
+                        <span className="manager-mini-chip">{formatDisplayDateTime(project.updatedAt)}</span>
+                      </div>
+                    </div>
+
+                    <div className="manager-entity-actions">
+                      <button
+                        className="button ghost"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setSelectedProjectId(project.id);
+                        }}
+                        type="button"
+                      >
+                        Sec
+                      </button>
+                      <button
+                        className="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void openProjectDrawer(project.id);
+                        }}
+                        type="button"
+                      >
+                        Detay
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <aside className="manager-surface-card manager-focus-panel">
+            <div className="manager-section-head compact">
+              <div>
+                <span className="manager-section-kicker">Secili klasor</span>
+                <h3 className="manager-section-title">Hizli ozet</h3>
+              </div>
+              <span className="manager-mini-chip">{listPreviewProject?.customer?.name ?? "Cari yok"}</span>
             </div>
-          )}
+
+            {!listPreviewProject ? (
+              <div className="empty">Liste secimi olmadigi icin onizleme gosterilemiyor.</div>
+            ) : (
+              <div className="manager-focus-stack">
+                <div className="manager-focus-lead">
+                  <strong>{listPreviewProject.name}</strong>
+                  <p className="muted">
+                    {listPreviewProject.description?.trim() || "Bu klasor icin aciklama henuz girilmemis."}
+                  </p>
+                </div>
+
+                <div className="manager-sheet-grid">
+                  <div className="manager-sheet-card">
+                    <span>Durum</span>
+                    <strong>{listPreviewProject.isArchived ? "Arsiv" : "Aktif"}</strong>
+                  </div>
+                  <div className="manager-sheet-card">
+                    <span>Konum</span>
+                    <strong>{listPreviewProject.locationLabel ? "Hazir" : "Eksik"}</strong>
+                  </div>
+                  <div className="manager-sheet-card">
+                    <span>Main dosya</span>
+                    <strong>{listPreviewProject.mainFileCount}</strong>
+                  </div>
+                  <div className="manager-sheet-card">
+                    <span>Timeline</span>
+                    <strong>{listPreviewProject.timelineEntryCount ?? 0}</strong>
+                  </div>
+                </div>
+
+                <div className="manager-overview-note">
+                  <strong>Son guncelleme</strong>
+                  <p>{formatDisplayDateTime(listPreviewProject.updatedAt)}</p>
+                  <p>{listPreviewProject.locationLabel ?? "Harita ve rota akisina baglanmasi icin konum girin."}</p>
+                </div>
+
+                <div className="manager-overview-actions">
+                  <button className="button" onClick={() => void openProjectDrawer(listPreviewProject.id)} type="button">
+                    Cekmeceyi Ac
+                  </button>
+                  <button
+                    className="button ghost"
+                    onClick={() => {
+                      setSelectedProjectId(listPreviewProject.id);
+                      setSelectedProject(listPreviewProject);
+                      openProjectEditor("edit");
+                    }}
+                    type="button"
+                  >
+                    Duzenle
+                  </button>
+                </div>
+              </div>
+            )}
+          </aside>
         </section>
       </div>
 
