@@ -48,6 +48,12 @@ enum IdempotencyStatus {
   COMPLETED
 }
 
+enum JobExecutionStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
 enum RecurrenceFrequency {
   WEEKLY
 }
@@ -89,6 +95,7 @@ model User {
   templateAssignments     ProgramTemplateAssignment[]  @relation("TemplateAssignmentUser")
   createdFieldFormTemplates FieldFormTemplate[]        @relation("FieldFormTemplateCreator")
   fieldFormResponses      FieldFormResponse[]          @relation("FieldFormResponseActor")
+  jobExecutions           JobExecution[]               @relation("JobExecutionActor")
 }
 
 model AuthSession {
@@ -456,4 +463,23 @@ model IdempotencyKey {
 
   @@unique([actorId, scope, key])
   @@index([createdAt])
+}
+
+model JobExecution {
+  id            String             @id @default(cuid())
+  jobName       String
+  triggerSource String
+  scope         String?
+  actorId       String?
+  targetDate    DateTime?          @db.Date
+  status        JobExecutionStatus @default(RUNNING)
+  startedAt     DateTime           @default(now())
+  finishedAt    DateTime?
+  errorMessage  String?
+  resultSummary Json?
+  actor         User?              @relation("JobExecutionActor", fields: [actorId], references: [id])
+
+  @@index([jobName, startedAt])
+  @@index([status, startedAt])
+  @@index([targetDate, startedAt])
 }

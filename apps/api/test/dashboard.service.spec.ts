@@ -1,5 +1,5 @@
 import { DashboardService } from "../src/dashboard/dashboard.service";
-import { NotificationCampaignType, NotificationDeliveryStatus } from "@prisma/client";
+import { JobExecutionStatus, NotificationCampaignType, NotificationDeliveryStatus } from "@prisma/client";
 
 describe("DashboardService", () => {
   const routingService = {
@@ -21,6 +21,9 @@ describe("DashboardService", () => {
     },
     fieldFormResponse: {
       findMany: jest.fn()
+    },
+    jobExecution: {
+      findMany: jest.fn()
     }
   };
 
@@ -37,6 +40,7 @@ describe("DashboardService", () => {
     prisma.workSession.findMany.mockResolvedValue([]);
     prisma.notificationCampaign.findMany.mockResolvedValue([]);
     prisma.fieldFormResponse.findMany.mockResolvedValue([]);
+    prisma.jobExecution.findMany.mockResolvedValue([]);
     routingService.getRecommendations.mockResolvedValue({
       selectedDate: "2026-03-29",
       anchor: null,
@@ -78,6 +82,17 @@ describe("DashboardService", () => {
       uniqueTemplateCount: 0,
       uniqueProjectCount: 0,
       recentResponses: []
+    });
+    expect(result.jobSummary).toEqual({
+      totalCount: 0,
+      runningCount: 0,
+      failedCount: 0,
+      recentExecutions: []
+    });
+    expect(result.backupOpsSummary).toEqual({
+      exportCount: 0,
+      restorePrepareCount: 0,
+      latestRestorePrepare: null
     });
     expect(result.notificationSummary.totalCount).toBe(0);
   });
@@ -390,6 +405,153 @@ describe("DashboardService", () => {
           createdAt: "2026-03-29T09:00:00.000Z"
         }
       ]
+    });
+  });
+
+  it("includes recent job execution summary for the selected day", async () => {
+    prisma.jobExecution.findMany.mockResolvedValue([
+      {
+        id: "job-1",
+        jobName: "notifications.daily-reminder",
+        status: JobExecutionStatus.SUCCEEDED,
+        triggerSource: "api",
+        startedAt: new Date("2026-03-29T08:00:00.000Z"),
+        targetDate: new Date("2026-03-29T00:00:00.000Z"),
+        resultSummary: null,
+        actor: {
+          id: "manager-1",
+          username: "yonetici",
+          displayName: "Ana Yonetici",
+          role: "MANAGER"
+        }
+      },
+      {
+        id: "job-2",
+        jobName: "program-templates.materialize",
+        status: JobExecutionStatus.FAILED,
+        triggerSource: "api",
+        startedAt: new Date("2026-03-29T09:00:00.000Z"),
+        targetDate: new Date("2026-03-29T00:00:00.000Z"),
+        resultSummary: null,
+        actor: null
+      },
+      {
+        id: "job-3",
+        jobName: "system.backup-export",
+        status: JobExecutionStatus.SUCCEEDED,
+        triggerSource: "api",
+        startedAt: new Date("2026-03-29T10:00:00.000Z"),
+        targetDate: null,
+        resultSummary: {
+          relativePath: "backups/exports/2026-03-29/export.json"
+        },
+        actor: null
+      },
+      {
+        id: "job-4",
+        jobName: "system.backup-restore-prepare",
+        status: JobExecutionStatus.SUCCEEDED,
+        triggerSource: "api",
+        startedAt: new Date("2026-03-29T11:00:00.000Z"),
+        targetDate: null,
+        resultSummary: {
+          integrityVerified: true,
+          inventoryVerified: false,
+          missingArtifacts: ["system/events.ndjson"]
+        },
+        actor: null
+      }
+    ]);
+
+    const service = new DashboardService(prisma as never, routingService as never);
+    const result = await service.getManagerOverview(actor, "2026-03-29");
+
+    expect(prisma.jobExecution.findMany).toHaveBeenCalledWith({
+      where: {
+        OR: [
+          {
+            targetDate: new Date("2026-03-29T00:00:00.000Z")
+          },
+          {
+            startedAt: {
+              gte: new Date("2026-03-29T00:00:00.000Z"),
+              lt: new Date("2026-03-30T00:00:00.000Z")
+            }
+          }
+        ]
+      },
+      include: {
+        actor: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+            role: true
+          }
+        }
+      },
+      orderBy: { startedAt: "desc" },
+      take: 8
+    });
+    expect(result.jobSummary).toEqual({
+      totalCount: 4,
+      runningCount: 0,
+      failedCount: 1,
+      recentExecutions: [
+        {
+          id: "job-1",
+          jobName: "notifications.daily-reminder",
+          status: JobExecutionStatus.SUCCEEDED,
+          triggerSource: "api",
+          startedAt: "2026-03-29T08:00:00.000Z",
+          targetDate: "2026-03-29",
+          actor: {
+            id: "manager-1",
+            username: "yonetici",
+            displayName: "Ana Yonetici",
+            role: "MANAGER"
+          }
+        },
+        {
+          id: "job-2",
+          jobName: "program-templates.materialize",
+          status: JobExecutionStatus.FAILED,
+          triggerSource: "api",
+          startedAt: "2026-03-29T09:00:00.000Z",
+          targetDate: "2026-03-29",
+          actor: null
+        },
+        {
+          id: "job-3",
+          jobName: "system.backup-export",
+          status: JobExecutionStatus.SUCCEEDED,
+          triggerSource: "api",
+          startedAt: "2026-03-29T10:00:00.000Z",
+          targetDate: null,
+          actor: null
+        },
+        {
+          id: "job-4",
+          jobName: "system.backup-restore-prepare",
+          status: JobExecutionStatus.SUCCEEDED,
+          triggerSource: "api",
+          startedAt: "2026-03-29T11:00:00.000Z",
+          targetDate: null,
+          actor: null
+        }
+      ]
+    });
+    expect(result.backupOpsSummary).toEqual({
+      exportCount: 1,
+      restorePrepareCount: 1,
+      latestRestorePrepare: {
+        id: "job-4",
+        startedAt: "2026-03-29T11:00:00.000Z",
+        status: JobExecutionStatus.SUCCEEDED,
+        integrityVerified: true,
+        inventoryVerified: false,
+        missingArtifactCount: 1
+      }
     });
   });
 });

@@ -23,8 +23,9 @@ export class DashboardService {
     const dateOnly = toDateOnly(selectedDate);
     const rangeEnd = new Date(dateOnly);
     rangeEnd.setUTCDate(rangeEnd.getUTCDate() + 1);
+    const jobExecution = (this.prisma as any).jobExecution;
 
-    const [program, recentActivities, activeSessions, campaigns, fieldFormResponses, routingRecommendations] =
+    const [program, recentActivities, activeSessions, campaigns, fieldFormResponses, jobExecutions, routingRecommendations] =
       await Promise.all([
       this.prisma.dailyProgram.findUnique({
         where: { date: dateOnly },
@@ -220,6 +221,33 @@ export class DashboardService {
         orderBy: { createdAt: "desc" },
         take: 12
       }),
+      jobExecution.findMany({
+        where: {
+          OR: [
+            {
+              targetDate: dateOnly
+            },
+            {
+              startedAt: {
+                gte: dateOnly,
+                lt: rangeEnd
+              }
+            }
+          ]
+        },
+        include: {
+          actor: {
+            select: {
+              id: true,
+              username: true,
+              displayName: true,
+              role: true
+            }
+          }
+        },
+        orderBy: { startedAt: "desc" },
+        take: 8
+      }),
       this.routingService.getRecommendations(actor, { date: selectedDate })
     ]);
 
@@ -299,6 +327,64 @@ export class DashboardService {
       }))
     };
 
+    const jobSummary = {
+      totalCount: jobExecutions.length,
+      runningCount: jobExecutions.filter((execution: any) => execution.status === "RUNNING").length,
+      failedCount: jobExecutions.filter((execution: any) => execution.status === "FAILED").length,
+      recentExecutions: jobExecutions.map((execution: any) => ({
+        id: execution.id,
+        jobName: execution.jobName,
+        status: execution.status,
+        triggerSource: execution.triggerSource,
+        startedAt: execution.startedAt.toISOString(),
+        targetDate: execution.targetDate?.toISOString().slice(0, 10) ?? null,
+        actor: execution.actor
+          ? {
+              id: execution.actor.id,
+              username: execution.actor.username,
+              displayName: execution.actor.displayName,
+              role: execution.actor.role
+            }
+          : null
+        }))
+    };
+
+    const backupRestoreExecutions = jobExecutions.filter(
+      (execution: any) => execution.jobName === "system.backup-restore-prepare"
+    );
+    const latestRestorePrepare = backupRestoreExecutions[0] as any | undefined;
+    const latestRestoreSummary =
+      latestRestorePrepare?.resultSummary && typeof latestRestorePrepare.resultSummary === "object"
+        ? (latestRestorePrepare.resultSummary as Record<string, unknown>)
+        : null;
+    const latestRestoreMissingArtifacts = Array.isArray(latestRestoreSummary?.missingArtifacts)
+      ? latestRestoreSummary?.missingArtifacts.filter(
+          (value): value is string => typeof value === "string"
+        )
+      : [];
+
+    const backupOpsSummary = {
+      exportCount: jobExecutions.filter((execution: any) => execution.jobName === "system.backup-export")
+        .length,
+      restorePrepareCount: backupRestoreExecutions.length,
+      latestRestorePrepare: latestRestorePrepare
+        ? {
+            id: latestRestorePrepare.id,
+            startedAt: latestRestorePrepare.startedAt.toISOString(),
+            status: latestRestorePrepare.status,
+            integrityVerified:
+              typeof latestRestoreSummary?.integrityVerified === "boolean"
+                ? latestRestoreSummary.integrityVerified
+                : null,
+            inventoryVerified:
+              typeof latestRestoreSummary?.inventoryVerified === "boolean"
+                ? latestRestoreSummary.inventoryVerified
+                : null,
+            missingArtifactCount: latestRestoreMissingArtifacts.length
+          }
+        : null
+    };
+
     return {
       selectedDate,
       summaryCards: {
@@ -361,6 +447,8 @@ export class DashboardService {
         }))
       },
       fieldFormSummary,
+      jobSummary,
+      backupOpsSummary,
       notificationSummary
     };
   }

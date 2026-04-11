@@ -485,7 +485,11 @@ export class ProjectsService {
     await this.assertProjectAccess(version.file.projectId, user);
 
     return {
-      stream: this.storageDriver.createReadStream(version.storagePath),
+      access: await this.storageDriver.resolveAccess(version.storagePath, {
+        disposition: inline && isInlinePreviewable(version.originalName) ? "inline" : "attachment",
+        filename: version.originalName,
+        contentType: version.mimeType
+      }),
       version,
       inline: inline && isInlinePreviewable(version.originalName)
     };

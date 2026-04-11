@@ -10,6 +10,7 @@ import { resolve } from "node:path";
 import { AuthModule } from "./auth/auth.module";
 import { validateAppEnv } from "./common/config/app-env";
 import { IdempotencyModule } from "./common/idempotency/idempotency.module";
+import { JobsModule } from "./common/jobs/jobs.module";
 import { ObservabilityModule } from "./common/observability/observability.module";
 import { RequestContextMiddleware } from "./common/observability/request-context.middleware";
 import { RequestLoggingInterceptor } from "./common/observability/request-logging.interceptor";
@@ -37,6 +38,7 @@ import { UsersModule } from "./users/users.module";
     }),
     ObservabilityModule,
     IdempotencyModule,
+    JobsModule,
     SecurityModule,
     PrismaModule,
     AuthModule,

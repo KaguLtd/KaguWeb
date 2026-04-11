@@ -156,6 +156,8 @@ export function ManagerOverviewModule() {
   const activities = overview?.recentActivities ?? [];
   const routingSummary = overview?.routingSummary;
   const fieldFormSummary = overview?.fieldFormSummary;
+  const jobSummary = overview?.jobSummary;
+  const backupOpsSummary = overview?.backupOpsSummary;
   const notificationSummary = overview?.notificationSummary;
   const filteredReportRows = useMemo(() => {
     const query = reportQuery.trim().toLocaleLowerCase("tr-TR");
@@ -362,6 +364,114 @@ export function ManagerOverviewModule() {
         <section className="manager-surface-card">
           <div className="manager-section-head compact">
             <div>
+              <span className="manager-section-kicker">Job ozeti</span>
+              <h3 className="manager-section-title">Arka plan operasyonlari</h3>
+            </div>
+            <div className="manager-inline-actions">
+              <Link className="button ghost" href="/dashboard/jobs" scroll={false}>
+                Tum Isler
+              </Link>
+              <span className="manager-mini-chip">{jobSummary?.totalCount ?? 0} kayit</span>
+              <span className="manager-mini-chip">{jobSummary?.runningCount ?? 0} calisiyor</span>
+              <span className="manager-mini-chip">{jobSummary?.failedCount ?? 0} hata</span>
+            </div>
+          </div>
+
+          {!overview && loading ? (
+            <div className="empty">Job ozeti yukleniyor.</div>
+          ) : !jobSummary?.recentExecutions.length ? (
+            <div className="empty">Secili gun icin job execution kaydi bulunmuyor.</div>
+          ) : (
+            <div className="manager-feed-list">
+              {jobSummary.recentExecutions.slice(0, 5).map((execution) => (
+                <article className="manager-feed-row" key={execution.id}>
+                  <div className="manager-feed-topline">
+                    <div>
+                      <strong>{execution.jobName}</strong>
+                      <p className="muted">
+                        {(execution.actor?.displayName ?? "Sistem")} • {execution.triggerSource}
+                      </p>
+                    </div>
+                    <span className="manager-mini-chip">
+                      {formatDisplayDateTime(execution.startedAt)}
+                    </span>
+                  </div>
+                  <div className="manager-feed-inline">
+                    <span className="manager-mini-chip">{execution.status}</span>
+                    {execution.targetDate ? (
+                      <span className="manager-mini-chip">{execution.targetDate}</span>
+                    ) : null}
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="manager-surface-card">
+          <div className="manager-section-head compact">
+            <div>
+              <span className="manager-section-kicker">Backup / Restore</span>
+              <h3 className="manager-section-title">Operasyon sagligi</h3>
+            </div>
+            <div className="manager-inline-actions">
+              <Link className="button ghost" href="/dashboard/jobs?filter=backup-ops" scroll={false}>
+                Jobs Ac
+              </Link>
+              <span className="manager-mini-chip">{backupOpsSummary?.exportCount ?? 0} export</span>
+              <span className="manager-mini-chip">
+                {backupOpsSummary?.restorePrepareCount ?? 0} restore check
+              </span>
+            </div>
+          </div>
+
+          {!overview && loading ? (
+            <div className="empty">Backup ve restore ozeti yukleniyor.</div>
+          ) : !backupOpsSummary?.latestRestorePrepare ? (
+            <div className="empty">Secili gunde restore hazirligi kaydi bulunmuyor.</div>
+          ) : (
+            <div className="manager-feed-list">
+              <article className="manager-feed-row">
+                <div className="manager-feed-topline">
+                  <div>
+                    <strong>Son restore hazirligi</strong>
+                    <p className="muted">{formatDisplayDateTime(backupOpsSummary.latestRestorePrepare.startedAt)}</p>
+                  </div>
+                  <span className="manager-mini-chip">{backupOpsSummary.latestRestorePrepare.status}</span>
+                </div>
+                  <div className="manager-feed-inline">
+                    <span className="manager-mini-chip">
+                      Integrity {backupOpsSummary.latestRestorePrepare.integrityVerified ? "OK" : "FAIL"}
+                    </span>
+                    <span className="manager-mini-chip">
+                      Inventory {backupOpsSummary.latestRestorePrepare.inventoryVerified ? "OK" : "FAIL"}
+                    </span>
+                    <span className="manager-mini-chip">
+                      {backupOpsSummary.latestRestorePrepare.missingArtifactCount} eksik artifact
+                    </span>
+                    {!backupOpsSummary.latestRestorePrepare.integrityVerified ||
+                    !backupOpsSummary.latestRestorePrepare.inventoryVerified ? (
+                      <span className="manager-mini-chip">Aksiyon gerekli</span>
+                    ) : null}
+                  </div>
+                  {!backupOpsSummary.latestRestorePrepare.integrityVerified ||
+                  !backupOpsSummary.latestRestorePrepare.inventoryVerified ? (
+                    <p className="manager-feed-text">
+                      Son restore hazirligi tam gecmedi. Jobs ekraninda artifact ve checksum detayini inceleyin.
+                    </p>
+                  ) : (
+                    <p className="manager-feed-text">
+                      Son restore hazirligi integrity ve inventory kontrolunu gecti.
+                    </p>
+                  )}
+                </article>
+              </div>
+            )}
+        </section>
+
+        <section className="manager-surface-card">
+          <div className="manager-section-head compact">
+            <div>
               <span className="manager-section-kicker">Son hareketler</span>
               <h3 className="manager-section-title">Gundeki operasyon akisi</h3>
             </div>
@@ -404,6 +514,9 @@ export function ManagerOverviewModule() {
               <h3 className="manager-section-title">Kampanya teslimati</h3>
             </div>
             <div className="manager-inline-actions">
+              <Link className="button ghost" href="/dashboard/jobs" scroll={false}>
+                Job Gecmisi
+              </Link>
               <span className="manager-mini-chip">{notificationSummary?.totalCount ?? 0} kampanya</span>
               <span className="manager-mini-chip">{notificationSummary?.sentCount ?? 0} teslim</span>
               <span className="manager-mini-chip">{notificationSummary?.failedCount ?? 0} hata</span>

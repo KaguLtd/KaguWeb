@@ -139,11 +139,16 @@ export class ProjectsController {
     @Res({ passthrough: true }) response: Response
   ) {
     const payload = await this.projectsService.downloadVersion(fileId, user, inline);
+    if (payload.access.kind === "redirect") {
+      response.redirect(payload.access.url);
+      return;
+    }
+
     response.setHeader("Content-Type", payload.version.mimeType);
     response.setHeader(
       "Content-Disposition",
       `${payload.inline ? "inline" : "attachment"}; filename="${encodeURIComponent(payload.version.originalName)}"`
     );
-    return payload.stream;
+    return payload.access.stream;
   }
 }

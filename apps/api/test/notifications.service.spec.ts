@@ -91,10 +91,17 @@ describe("NotificationsService", () => {
     };
   }
 
+  function createJobsServiceMock() {
+    return {
+      run: jest.fn(async ({ action }) => action())
+    };
+  }
+
   function createService() {
     const prisma = createPrismaMock();
     const storageService = createStorageServiceMock();
     const idempotencyService = createIdempotencyServiceMock();
+    const jobsService = createJobsServiceMock();
     const logger = createLoggerMock();
 
     return {
@@ -102,11 +109,13 @@ describe("NotificationsService", () => {
         prisma as never,
         storageService as never,
         idempotencyService as never,
+        jobsService as never,
         logger as never
       ),
       prisma,
       storageService,
       idempotencyService,
+      jobsService,
       logger
     };
   }
@@ -337,7 +346,7 @@ describe("NotificationsService", () => {
   });
 
   it("builds daily reminder campaigns for unique active field assignees and audits each project", async () => {
-    const { service, prisma, storageService, idempotencyService } = createService();
+    const { service, prisma, storageService, idempotencyService, jobsService } = createService();
     const targetDate = new Date("2026-04-10T00:00:00.000Z");
     const createdAt = new Date("2026-04-09T09:00:00.000Z");
     const userCreatedAt = new Date("2026-02-15T00:00:00.000Z");
@@ -489,6 +498,14 @@ describe("NotificationsService", () => {
         actorId: "manager-1",
         scope: "notifications:daily-reminder:2026-04-10",
         key: undefined
+      })
+    );
+    expect(jobsService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobName: "notifications.daily-reminder",
+        triggerSource: "api",
+        scope: "notifications:daily-reminder:2026-04-10",
+        targetDate
       })
     );
     expect(prisma.notificationDelivery.create).toHaveBeenCalledTimes(2);

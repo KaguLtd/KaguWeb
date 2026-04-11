@@ -3,6 +3,7 @@ export type FileScope = "MAIN" | "TIMELINE";
 export type ProjectStatus = "ACTIVE" | "ARCHIVED";
 export type NotificationCampaignType = "MANUAL" | "DAILY_REMINDER";
 export type NotificationDeliveryStatus = "PENDING" | "SENT" | "FAILED";
+export type JobExecutionStatus = "RUNNING" | "SUCCEEDED" | "FAILED";
 
 export type ProjectEntryType =
   | "MANAGER_NOTE"
@@ -331,6 +332,36 @@ export interface ManagerDashboardFieldFormSummary {
   recentResponses: ManagerDashboardFieldFormResponseSummaryItem[];
 }
 
+export interface ManagerDashboardJobSummaryItem {
+  id: string;
+  jobName: string;
+  status: JobExecutionStatus;
+  triggerSource: string;
+  startedAt: string;
+  targetDate: string | null;
+  actor: SessionUser | null;
+}
+
+export interface ManagerDashboardJobSummary {
+  totalCount: number;
+  runningCount: number;
+  failedCount: number;
+  recentExecutions: ManagerDashboardJobSummaryItem[];
+}
+
+export interface ManagerDashboardBackupOpsSummary {
+  exportCount: number;
+  restorePrepareCount: number;
+  latestRestorePrepare: {
+    id: string;
+    startedAt: string;
+    status: JobExecutionStatus;
+    integrityVerified: boolean | null;
+    inventoryVerified: boolean | null;
+    missingArtifactCount: number;
+  } | null;
+}
+
 export type FieldFormFieldType =
   | "TEXT"
   | "TEXTAREA"
@@ -389,6 +420,8 @@ export interface ManagerDashboardResponse {
   activeSessions: ManagerDashboardActiveSession[];
   routingSummary: ManagerDashboardRoutingSummary;
   fieldFormSummary: ManagerDashboardFieldFormSummary;
+  jobSummary: ManagerDashboardJobSummary;
+  backupOpsSummary: ManagerDashboardBackupOpsSummary;
   notificationSummary: ManagerDashboardNotificationSummary;
 }
 
@@ -435,4 +468,50 @@ export interface NotificationCampaignSummary {
   createdAt: string;
   sender: SessionUser;
   deliveries: NotificationDeliverySummary[];
+}
+
+export interface JobExecutionSummary {
+  id: string;
+  jobName: string;
+  triggerSource: string;
+  scope: string | null;
+  status: JobExecutionStatus;
+  targetDate: string | null;
+  startedAt: string;
+  finishedAt: string | null;
+  errorMessage: string | null;
+  resultSummary: Record<string, unknown> | null;
+  actor: SessionUser | null;
+}
+
+export interface JobArtifactPreview {
+  path: string;
+  filename: string;
+  contentType: string;
+  preview: string;
+  truncated: boolean;
+  previewMode: "json" | "ndjson" | "text";
+}
+
+export interface BackupRestorePreparationResult {
+  manifestPath: string;
+  exportType: string;
+  exportedAt: string;
+  label: string | null;
+  integrityVerified: boolean;
+  inventoryVerified: boolean;
+  missingArtifacts: string[];
+  artifactCount: number;
+  counts: Record<string, number> | null;
+  integrity: {
+    expectedSha256: string | null;
+    calculatedSha256: string;
+    expectedBytes: number | null;
+    calculatedBytes: number;
+  };
+  artifacts: Array<{
+    type: string;
+    relativePath: string;
+    exists: boolean;
+  }>;
 }

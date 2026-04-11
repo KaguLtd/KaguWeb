@@ -13,8 +13,9 @@ import type { FieldNotificationHistoryPage } from "@kagu/contracts";
 import * as webpush from "web-push";
 import { CurrentUserPayload } from "../common/decorators/current-user.decorator";
 import { IdempotencyService } from "../common/idempotency/idempotency.service";
+import { JobsService } from "../common/jobs/jobs.service";
 import { StructuredLoggerService } from "../common/observability/structured-logger.service";
-import { toDateOnly } from "../common/utils/date";
+import { formatDateOnly, toDateOnly } from "../common/utils/date";
 import { PrismaService } from "../prisma/prisma.service";
 import { NotificationHistoryQueryDto } from "./dto/notification-history-query.dto";
 import { StorageService } from "../storage/storage.service";
@@ -36,6 +37,7 @@ export class NotificationsService {
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
     private readonly idempotencyService: IdempotencyService,
+    private readonly jobsService: JobsService,
     private readonly logger: StructuredLoggerService
   ) {
     if (this.isPushConfigured()) {
@@ -281,97 +283,111 @@ export class NotificationsService {
     dto: SendDailyReminderDto,
     idempotencyKey?: string
   ) {
+    const date = toDateOnly(dto.date ?? new Date().toISOString().slice(0, 10));
+
     return this.idempotencyService.execute({
       actorId: actor.sub,
       scope: `notifications:daily-reminder:${dto.date ?? "today"}`,
       key: idempotencyKey,
-      action: async () => {
-        this.assertManager(actor);
-        const date = toDateOnly(dto.date ?? new Date().toISOString().slice(0, 10));
-        const program = await this.prisma.dailyProgram.findUnique({
-          where: { date },
-          include: {
-            programProjects: {
+      action: async () =>
+        this.jobsService.run({
+          jobName: "notifications.daily-reminder",
+          triggerSource: "api",
+          actor,
+          scope: `notifications:daily-reminder:${formatDateOnly(date)}`,
+          targetDate: date,
+          summarizeResult: (result) => ({
+            campaignId: result.id,
+            deliveryCount: result.deliveries.length,
+            targetDate: result.targetDate
+          }),
+          action: async () => {
+            this.assertManager(actor);
+            const program = await this.prisma.dailyProgram.findUnique({
+              where: { date },
               include: {
-                project: {
-                  select: { id: true, name: true, storageRoot: true }
-                },
-                assignments: {
-                  where: { isActive: true },
+                programProjects: {
                   include: {
-                    user: {
-                      select: { id: true, role: true, isActive: true }
+                    project: {
+                      select: { id: true, name: true, storageRoot: true }
+                    },
+                    assignments: {
+                      where: { isActive: true },
+                      include: {
+                        user: {
+                          select: { id: true, role: true, isActive: true }
+                        }
+                      }
                     }
                   }
                 }
               }
+            });
+
+            if (!program) {
+              throw new NotFoundException("Secilen tarih icin gunluk program bulunamadi.");
             }
-          }
-        });
 
-        if (!program) {
-          throw new NotFoundException("Secilen tarih icin gunluk program bulunamadi.");
-        }
+            const uniqueUserIds = [
+              ...new Set(
+                program.programProjects.flatMap((programProject) =>
+                  programProject.assignments
+                    .filter((assignment) => assignment.user.role === Role.FIELD && assignment.user.isActive)
+                    .map((assignment) => assignment.user.id)
+                )
+              )
+            ];
 
-        const uniqueUserIds = [
-          ...new Set(
-            program.programProjects.flatMap((programProject) =>
-              programProject.assignments
-                .filter((assignment) => assignment.user.role === Role.FIELD && assignment.user.isActive)
-                .map((assignment) => assignment.user.id)
-            )
-          )
-        ];
+            if (!uniqueUserIds.length) {
+              throw new BadRequestException("Bu tarih icin bildirilecek aktif saha atamasi bulunamadi.");
+            }
 
-        if (!uniqueUserIds.length) {
-          throw new BadRequestException("Bu tarih icin bildirilecek aktif saha atamasi bulunamadi.");
-        }
+            const projectNames = program.programProjects.map((item) => item.project.name);
+            const title = "Gunluk program hatirlatmasi";
+            const body = projectNames.length
+              ? `Bugun atanmis projeler: ${projectNames.join(", ")}`
+              : "Bugun icin size atanmis saha programi bulunuyor.";
 
-        const projectNames = program.programProjects.map((item) => item.project.name);
-        const title = "Gunluk program hatirlatmasi";
-        const body = projectNames.length
-          ? `Bugun atanmis projeler: ${projectNames.join(", ")}`
-          : "Bugun icin size atanmis saha programi bulunuyor.";
-
-        const campaign = await this.prisma.notificationCampaign.create({
-          data: {
-            senderId: actor.sub,
-            type: NotificationCampaignType.DAILY_REMINDER,
-            title,
-            message: body,
-            dailyProgramId: program.id,
-            targetDate: date
-          }
-        });
-
-        await this.dispatchCampaign(campaign.id, uniqueUserIds, {
-          title,
-          body,
-          url: "/dashboard",
-          campaignId: campaign.id,
-          type: NotificationCampaignType.DAILY_REMINDER
-        });
-
-        await Promise.all(
-          program.programProjects.map((programProject) =>
-            this.storageService.appendProjectEvent({
-              project: programProject.project,
-              actor,
-              eventType: "DAILY_REMINDER_SENT",
-              payload: {
-                campaignId: campaign.id,
-                targetDate: date.toISOString().slice(0, 10),
+            const campaign = await this.prisma.notificationCampaign.create({
+              data: {
+                senderId: actor.sub,
+                type: NotificationCampaignType.DAILY_REMINDER,
                 title,
-                targetUserIds: programProject.assignments
-                  .filter((assignment) => assignment.user.role === Role.FIELD && assignment.user.isActive)
-                  .map((assignment) => assignment.user.id)
+                message: body,
+                dailyProgramId: program.id,
+                targetDate: date
               }
-            })
-          )
-        );
+            });
 
-        return this.getCampaignById(campaign.id);
-      }
+            await this.dispatchCampaign(campaign.id, uniqueUserIds, {
+              title,
+              body,
+              url: "/dashboard",
+              campaignId: campaign.id,
+              type: NotificationCampaignType.DAILY_REMINDER
+            });
+
+            await Promise.all(
+              program.programProjects.map((programProject) =>
+                this.storageService.appendProjectEvent({
+                  project: programProject.project,
+                  actor,
+                  eventType: "DAILY_REMINDER_SENT",
+                  payload: {
+                    campaignId: campaign.id,
+                    targetDate: date.toISOString().slice(0, 10),
+                    title,
+                    targetUserIds: programProject.assignments
+                      .filter((assignment) => assignment.user.role === Role.FIELD && assignment.user.isActive)
+                      .map((assignment) => assignment.user.id)
+                  }
+                })
+              )
+            );
+
+            return this.getCampaignById(campaign.id);
+          }
+        })
     });
   }
 

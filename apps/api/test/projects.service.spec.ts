@@ -26,6 +26,7 @@ describe("ProjectsService", () => {
     return {
       ensureDirectory: jest.fn().mockResolvedValue(undefined),
       createReadStream: jest.fn(),
+      resolveAccess: jest.fn(),
       pathExists: jest.fn(),
       writeBuffer: jest.fn(),
       writeText: jest.fn(),
@@ -332,5 +333,123 @@ describe("ProjectsService", () => {
         eventType: "MAIN_FILE_DELETED"
       })
     );
+  });
+
+  it("returns streamed download access for project file versions", async () => {
+    const prisma = {
+      projectFileVersion: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: "version-1",
+          originalName: "rapor.pdf",
+          mimeType: "application/pdf",
+          storagePath: "projects/project-1/main/proje/rapor.pdf",
+          file: {
+            projectId: "project-1"
+          }
+        })
+      },
+      project: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: "project-1",
+          storageRoot: "projects/project-1"
+        })
+      },
+      projectAssignment: {
+        findFirst: jest.fn()
+      }
+    };
+
+    const storageDriver = createStorageDriverMock();
+    storageDriver.resolveAccess.mockResolvedValue({
+      kind: "stream",
+      stream: "stream-handle"
+    });
+
+    const service = new ProjectsService(
+      prisma as never,
+      createStorageServiceMock() as never,
+      storageDriver as never,
+      createStoragePathServiceMock() as never
+    );
+
+    const result = await service.downloadVersion("version-1", actor as never);
+
+    expect(storageDriver.resolveAccess).toHaveBeenCalledWith(
+      "projects/project-1/main/proje/rapor.pdf",
+      {
+        disposition: "attachment",
+        filename: "rapor.pdf",
+        contentType: "application/pdf"
+      }
+    );
+    expect(result).toEqual({
+      access: {
+        kind: "stream",
+        stream: "stream-handle"
+      },
+      version: expect.objectContaining({
+        id: "version-1"
+      }),
+      inline: false
+    });
+  });
+
+  it("requests inline redirect-capable access when preview is allowed", async () => {
+    const prisma = {
+      projectFileVersion: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: "version-2",
+          originalName: "plan.jpg",
+          mimeType: "image/jpeg",
+          storagePath: "projects/project-1/main/proje/plan.jpg",
+          file: {
+            projectId: "project-1"
+          }
+        })
+      },
+      project: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: "project-1",
+          storageRoot: "projects/project-1"
+        })
+      },
+      projectAssignment: {
+        findFirst: jest.fn()
+      }
+    };
+
+    const storageDriver = createStorageDriverMock();
+    storageDriver.resolveAccess.mockResolvedValue({
+      kind: "redirect",
+      url: "https://cdn.kagu.local/projects/project-1/main/proje/plan.jpg?disposition=inline"
+    });
+
+    const service = new ProjectsService(
+      prisma as never,
+      createStorageServiceMock() as never,
+      storageDriver as never,
+      createStoragePathServiceMock() as never
+    );
+
+    const result = await service.downloadVersion("version-2", actor as never, true);
+
+    expect(storageDriver.resolveAccess).toHaveBeenCalledWith(
+      "projects/project-1/main/proje/plan.jpg",
+      {
+        disposition: "inline",
+        filename: "plan.jpg",
+        contentType: "image/jpeg"
+      }
+    );
+    expect(result).toEqual({
+      access: {
+        kind: "redirect",
+        url: "https://cdn.kagu.local/projects/project-1/main/proje/plan.jpg?disposition=inline"
+      },
+      version: expect.objectContaining({
+        id: "version-2"
+      }),
+      inline: true
+    });
   });
 });

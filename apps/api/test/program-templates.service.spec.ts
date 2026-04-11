@@ -69,9 +69,16 @@ describe("ProgramTemplatesService", () => {
     };
   }
 
+  function createJobsServiceMock() {
+    return {
+      run: jest.fn(async ({ action }) => action())
+    };
+  }
+
   it("creates weekly program templates with ordered projects and assignments", async () => {
     const prisma = createPrismaMock();
     const storageService = createStorageServiceMock();
+    const jobsService = createJobsServiceMock();
 
     prisma.project.findMany.mockResolvedValue([{ id: "project-1" }, { id: "project-2" }]);
     prisma.user.findMany.mockResolvedValue([{ id: "field-1" }, { id: "field-2" }]);
@@ -103,6 +110,7 @@ describe("ProgramTemplatesService", () => {
     const service = new ProgramTemplatesService(
       prisma as never,
       storageService as never,
+      jobsService as never,
       createLoggerMock() as never
     );
 
@@ -204,6 +212,7 @@ describe("ProgramTemplatesService", () => {
   it("materializes matching templates without removing manual assignments", async () => {
     const prisma = createPrismaMock();
     const storageService = createStorageServiceMock();
+    const jobsService = createJobsServiceMock();
 
     prisma.programTemplate.findUnique.mockResolvedValue({
       id: "template-1",
@@ -255,6 +264,7 @@ describe("ProgramTemplatesService", () => {
     const service = new ProgramTemplatesService(
       prisma as never,
       storageService as never,
+      jobsService as never,
       createLoggerMock() as never
     );
 
@@ -273,6 +283,14 @@ describe("ProgramTemplatesService", () => {
         managerNote: "Sabah plan"
       }
     });
+    expect(jobsService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobName: "program-templates.materialize",
+        triggerSource: "api",
+        scope: "program-template:template-1",
+        targetDate: new Date("2026-04-13T00:00:00.000Z")
+      })
+    );
     expect(prisma.projectAssignment.update).toHaveBeenCalledWith({
       where: { id: "assignment-1" },
       data: { isActive: true }
@@ -351,6 +369,7 @@ describe("ProgramTemplatesService", () => {
     const service = new ProgramTemplatesService(
       prisma as never,
       createStorageServiceMock() as never,
+      createJobsServiceMock() as never,
       createLoggerMock() as never
     );
 
@@ -461,6 +480,7 @@ describe("ProgramTemplatesService", () => {
     const service = new ProgramTemplatesService(
       prisma as never,
       createStorageServiceMock() as never,
+      createJobsServiceMock() as never,
       createLoggerMock() as never
     );
 
@@ -525,6 +545,7 @@ describe("ProgramTemplatesService", () => {
   it("updates template metadata, recurrence, and project assignments", async () => {
     const prisma = createPrismaMock();
     const storageService = createStorageServiceMock();
+    const jobsService = createJobsServiceMock();
 
     prisma.programTemplate.findUnique
       .mockResolvedValueOnce({ id: "template-1" })
@@ -576,6 +597,7 @@ describe("ProgramTemplatesService", () => {
     const service = new ProgramTemplatesService(
       prisma as never,
       storageService as never,
+      jobsService as never,
       createLoggerMock() as never
     );
 
@@ -693,6 +715,7 @@ describe("ProgramTemplatesService", () => {
   it("toggles template active state through a dedicated endpoint flow", async () => {
     const prisma = createPrismaMock();
     const storageService = createStorageServiceMock();
+    const jobsService = createJobsServiceMock();
 
     prisma.programTemplate.findUnique
       .mockResolvedValueOnce({
@@ -721,6 +744,7 @@ describe("ProgramTemplatesService", () => {
     const service = new ProgramTemplatesService(
       prisma as never,
       storageService as never,
+      jobsService as never,
       createLoggerMock() as never
     );
 
@@ -777,6 +801,7 @@ describe("ProgramTemplatesService", () => {
     const service = new ProgramTemplatesService(
       prisma as never,
       createStorageServiceMock() as never,
+      createJobsServiceMock() as never,
       logger as never
     );
 
@@ -795,6 +820,7 @@ describe("ProgramTemplatesService", () => {
     const service = new ProgramTemplatesService(
       createPrismaMock() as never,
       createStorageServiceMock() as never,
+      createJobsServiceMock() as never,
       createLoggerMock() as never
     );
 

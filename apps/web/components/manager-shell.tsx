@@ -45,6 +45,10 @@ const navigation = [
     label: "Form Cevaplari"
   },
   {
+    href: "/dashboard/jobs",
+    label: "Is Gecmisi"
+  },
+  {
     href: "/dashboard/tracking",
     label: "Takip"
   }
@@ -58,6 +62,7 @@ const iconByHref = {
   "/dashboard/templates": TimelineIcon,
   "/dashboard/forms": FileIcon,
   "/dashboard/form-responses": FileIcon,
+  "/dashboard/jobs": TimelineIcon,
   "/dashboard/tracking": MapIcon
 } as const;
 
@@ -89,6 +94,10 @@ const routeCopy = {
   "form-responses": {
     kicker: "Saha cevaplari",
     description: "Kaydedilen form cevaplarini proje, actor ve template bazinda inceleyin."
+  },
+  jobs: {
+    kicker: "Arka plan isleri",
+    description: "Materialize ve reminder gibi operasyonlarin calisma gecmisini izleyin."
   },
   tracking: {
     kicker: "Canli takip",
@@ -129,6 +138,9 @@ function resolveTheme(pathname: string) {
   }
   if (pathname.startsWith("/dashboard/form-responses")) {
     return "form-responses";
+  }
+  if (pathname.startsWith("/dashboard/jobs")) {
+    return "jobs";
   }
   if (pathname.startsWith("/dashboard/tracking")) {
     return "tracking";
