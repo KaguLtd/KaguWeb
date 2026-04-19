@@ -1,0 +1,20 @@
+[Unit]
+Description=Kagu API
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=kagu
+Group=kagu
+WorkingDirectory=/srv/kagu/app
+Environment=NODE_ENV=production
+EnvironmentFile=/srv/kagu/app/.env
+ExecStart=/usr/bin/npm run start --workspace @kagu/api
+Restart=always
+RestartSec=5
+StandardOutput=append:/srv/kagu/runtime/api.log
+StandardError=append:/srv/kagu/runtime/api.err.log
+
+[Install]
+WantedBy=multi-user.target

@@ -7,10 +7,10 @@ type ApiRequestInit = RequestInit & {
   skipAuthRetry?: boolean;
 };
 
-type RefreshHandler = () => Promise<string | null>;
+type RefreshHandler = () => Promise<boolean>;
 
 let refreshHandler: RefreshHandler | null = null;
-let refreshInFlight: Promise<string | null> | null = null;
+let refreshInFlight: Promise<boolean> | null = null;
 
 export class ApiError extends Error {
   status: number;
@@ -88,10 +88,6 @@ async function requestOnce(path: string, options: ApiRequestInit, token?: string
     headers.set("Content-Type", "application/json");
   }
 
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
-
   return fetch(resolveApiUrl(path), {
     ...fetchOptions,
     headers,
@@ -157,10 +153,10 @@ export async function apiFetch<T>(
     shouldTryAuthRefresh(path, options) &&
     typeof window !== "undefined"
   ) {
-    const refreshedToken = await runRefreshHandler();
-    if (refreshedToken) {
+    const refreshed = await runRefreshHandler();
+    if (refreshed) {
       try {
-        response = await requestOnce(path, { ...options, skipAuthRetry: true }, refreshedToken);
+        response = await requestOnce(path, { ...options, skipAuthRetry: true }, token);
       } catch (error) {
         throw toNetworkApiError(error);
       }
@@ -199,10 +195,10 @@ export async function fetchAuthorizedBlob(path: string, token: string) {
     shouldTryAuthRefresh(path, {}) &&
     typeof window !== "undefined"
   ) {
-    const refreshedToken = await runRefreshHandler();
-    if (refreshedToken) {
+    const refreshed = await runRefreshHandler();
+    if (refreshed) {
       try {
-        response = await requestOnce(path, { method: "GET", skipAuthRetry: true }, refreshedToken);
+        response = await requestOnce(path, { method: "GET", skipAuthRetry: true }, token);
       } catch (error) {
         throw toNetworkApiError(error);
       }

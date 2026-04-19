@@ -116,3 +116,80 @@ Opsiyonel demo seed calistirildiysa varsayilan hesaplar:
 - sifre: `Kagu123!`
 - ornek saha: `saha.1`
 - sifre: `Saha123!`
+
+## Production mimarisi
+
+Deploy hedefi tek domain ve tek sunucudur:
+
+- domain: `https://saha.kagultd.com`
+- web: Next.js, internal `127.0.0.1:3000`
+- api: NestJS, internal `127.0.0.1:4000`
+- reverse proxy ve TLS: Caddy
+- veritabani: PostgreSQL 16, ayni sunucuda
+
+Bu repo production'da dosyalari object storage'a degil yerel diske yazar. Gercek binary dosyalar `STORAGE_ROOT` altinda tutulur, metadata ve iliskiler PostgreSQL'dedir.
+
+Onemli runtime varsayimlari:
+
+- `STORAGE_DRIVER=local`
+- `UPLOAD_TEMP_ROOT` zorunludur; upload once bu temp dizine iner, sonra kalici storage'a kopyalanir
+- auth cookie-only calisir; access token browser storage'a yazilmaz
+- rate limit in-memory'dir; tek API instance icin uygundur, yatay olceklenirse Redis benzeri paylasimli store gerekir
+
+Varsayilan production dizinleri:
+
+- repo: `/srv/kagu/app`
+- storage: `/srv/kagu/storage`
+- temp upload: `/srv/kagu/tmp/uploads`
+- runtime log: `/srv/kagu/runtime`
+
+## Production ortam degiskenleri
+
+Ornek `.env.example` production degerleriyle gelir. Minimum kritik alanlar:
+
+- `WEB_ORIGIN=https://saha.kagultd.com`
+- `STORAGE_ROOT=/srv/kagu/storage`
+- `UPLOAD_TEMP_ROOT=/srv/kagu/tmp/uploads`
+- `NEXT_PUBLIC_API_URL=/api`
+- `NEXT_SERVER_API_PROXY_URL=http://127.0.0.1:4000/api`
+- guclu ve benzersiz `JWT_SECRET`
+
+## Deploy adimlari
+
+Sunucuda:
+
+```bash
+sudo mkdir -p /srv/kagu/app /srv/kagu/storage /srv/kagu/tmp/uploads /srv/kagu/runtime
+sudo chown -R kagu:kagu /srv/kagu
+```
+
+Repo icinde:
+
+```bash
+npm ci
+npm run prisma:generate
+npx prisma migrate deploy --schema apps/api/prisma/schema.prisma
+npm run build
+```
+
+Ilk kurulumda yonetici bootstrap:
+
+```bash
+npm run db:bootstrap-admin -- --username yonetici --displayName "Ana Yonetici" --password "GucluBirSifre!"
+```
+
+Sonrasinda systemd servislerini yeniden yukleyin ve baslatin:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now kagu-api.service
+sudo systemctl enable --now kagu-web.service
+sudo systemctl reload caddy
+```
+
+Ornek production dosyalari `deploy/` klasorundedir:
+
+- `deploy/kagu-api.service`
+- `deploy/kagu-web.service`
+- `deploy/Caddyfile`
+- `deploy/bootstrap.sh`

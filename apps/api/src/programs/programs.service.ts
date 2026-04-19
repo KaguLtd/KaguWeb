@@ -13,6 +13,7 @@ import {
   isImage,
   isInlinePreviewable
 } from "../common/utils/file-policy";
+import { cleanupUploadedTempFiles } from "../common/utils/upload-temp-storage";
 import { PrismaService } from "../prisma/prisma.service";
 import { ProjectsService } from "../projects/projects.service";
 import { NotificationsService } from "../notifications/notifications.service";
@@ -907,13 +908,18 @@ export class ProgramsService {
           throw new BadRequestException("Not veya dosya girmelisiniz.");
         }
 
-        const stagedFiles = files?.length
-          ? await this.projectsService.stageTimelineFiles(
-              { storageRoot: programProject.project.storageRoot },
-              programProject.dailyProgram.date,
-              files
-            )
-          : [];
+        let stagedFiles: Awaited<ReturnType<ProjectsService["stageTimelineFiles"]>> = [];
+        try {
+          stagedFiles = files?.length
+            ? await this.projectsService.stageTimelineFiles(
+                { storageRoot: programProject.project.storageRoot },
+                programProject.dailyProgram.date,
+                files
+              )
+            : [];
+        } finally {
+          await cleanupUploadedTempFiles(files);
+        }
 
         try {
           const entry = await this.prisma.$transaction(async (tx) => {

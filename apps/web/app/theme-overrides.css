@@ -347,7 +347,7 @@
 .manager-inline-badge-session {
   border-color: rgba(47, 128, 101, 0.18);
   background: var(--success-soft);
-  color: var(--success);
+  color: var(--success-strong);
 }
 
 .manager-inline-badge.is-muted {
@@ -360,14 +360,14 @@
 .manager-inline-badge-campaign {
   border-color: rgba(70, 111, 132, 0.16);
   background: var(--info-soft);
-  color: var(--info);
+  color: var(--info-strong);
 }
 
 .manager-inline-badge.is-warn,
 .manager-inline-badge-reminder {
   border-color: rgba(173, 122, 34, 0.18);
   background: var(--warning-soft);
-  color: var(--warning);
+  color: var(--warning-strong);
 }
 
 .manager-topbar-actions {
@@ -500,7 +500,7 @@
 
 .manager-overview-status-ok .manager-overview-status-icon {
   background: rgba(47, 128, 101, 0.1);
-  color: var(--success);
+  color: var(--success-strong);
 }
 
 .manager-overview-status-warn {
@@ -509,7 +509,7 @@
 
 .manager-overview-status-warn .manager-overview-status-icon {
   background: rgba(173, 122, 34, 0.1);
-  color: var(--warning);
+  color: var(--warning-strong);
 }
 
 .manager-overview-note {
@@ -943,7 +943,7 @@
 .button.danger-minimal {
   background: rgba(255, 255, 255, 0.72);
   border-color: rgba(179, 82, 77, 0.24);
-  color: var(--danger);
+  color: var(--danger-strong);
   box-shadow: none;
 }
 
@@ -960,7 +960,7 @@
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-interactive);
   border-radius: 5px;
   background: var(--surface-strong);
   text-align: left;
@@ -975,7 +975,7 @@
   display: grid;
   gap: 8px;
   padding: 10px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-interactive);
   border-radius: 6px;
   background: var(--surface-strong);
   box-shadow: var(--shadow-md);
@@ -991,6 +991,7 @@
 .customer-select-row.active {
   border-color: rgba(184, 108, 47, 0.28);
   background: var(--accent-quiet);
+  color: var(--accent-strong);
 }
 
 .program-project-picker-copy,
@@ -1028,6 +1029,7 @@
 .assign-pill.active {
   border-color: rgba(184, 108, 47, 0.28);
   background: var(--accent-quiet);
+  color: var(--accent-strong);
 }
 
 .assign-pill input {

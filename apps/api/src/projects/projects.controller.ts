@@ -16,7 +16,6 @@ import {
 import { FilesInterceptor } from "@nestjs/platform-express";
 import { Response } from "express";
 import { Role } from "@prisma/client";
-import { memoryStorage } from "multer";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import type { CurrentUserPayload } from "../common/decorators/current-user.decorator";
 import { Roles } from "../common/decorators/roles.decorator";
@@ -25,7 +24,7 @@ import { RolesGuard } from "../common/guards/roles.guard";
 import { MAIN_FILE_UPLOAD_RATE_LIMITS } from "../common/security/rate-limit-policies";
 import { RateLimit } from "../common/security/rate-limit.decorator";
 import { RateLimitGuard } from "../common/security/rate-limit.guard";
-import { MAX_FILE_SIZE } from "../common/utils/file-policy";
+import { uploadDiskStorageOptions } from "../common/utils/upload-temp-storage";
 import { CreateCustomerDto } from "./dto/create-customer.dto";
 import { CreateProjectDto } from "./dto/create-project.dto";
 import { ProjectFiltersDto } from "./dto/project-filters.dto";
@@ -96,10 +95,7 @@ export class ProjectsController {
   @UseGuards(RateLimitGuard)
   @RateLimit(...MAIN_FILE_UPLOAD_RATE_LIMITS)
   @UseInterceptors(
-    FilesInterceptor("files", 12, {
-      storage: memoryStorage(),
-      limits: { fileSize: MAX_FILE_SIZE }
-    })
+    FilesInterceptor("files", 12, uploadDiskStorageOptions)
   )
   uploadMainFiles(
     @Param("id") id: string,

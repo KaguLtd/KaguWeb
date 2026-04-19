@@ -41,6 +41,10 @@ describe("AuthController contract", () => {
 
   let app: INestApplication;
 
+  function findCookie(response: { headers: Record<string, unknown> }, prefix: string) {
+    return (response.headers["set-cookie"] as string[]).find((value) => value.startsWith(prefix));
+  }
+
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       controllers: [AuthController],
@@ -97,9 +101,11 @@ describe("AuthController contract", () => {
       .expect(201);
 
     expect(response.body).toEqual(authPayload);
-    expect(response.headers["set-cookie"][0]).toContain("kagu_rt=refresh-token-1");
-    expect(response.headers["set-cookie"][0]).toContain("Path=/api/auth");
-    expect(response.headers["set-cookie"][0]).toContain("HttpOnly");
+    expect(findCookie(response, "kagu_at=")).toContain("kagu_at=access-token");
+    expect(findCookie(response, "kagu_at=")).toContain("Path=/api");
+    expect(findCookie(response, "kagu_rt=")).toContain("kagu_rt=refresh-token-1");
+    expect(findCookie(response, "kagu_rt=")).toContain("Path=/api/auth");
+    expect(findCookie(response, "kagu_rt=")).toContain("HttpOnly");
     expect(authService.login).toHaveBeenCalledWith(
       {
         username: "yonetici",
@@ -135,8 +141,9 @@ describe("AuthController contract", () => {
       .expect(201);
 
     expect(response.body).toEqual(authPayload);
-    expect(response.headers["set-cookie"][0]).toContain("kagu_rt=refresh-token-2");
-    expect(response.headers["set-cookie"][0]).not.toContain("Max-Age=");
+    expect(findCookie(response, "kagu_at=")).toContain("kagu_at=access-token");
+    expect(findCookie(response, "kagu_rt=")).toContain("kagu_rt=refresh-token-2");
+    expect(findCookie(response, "kagu_rt=")).not.toContain("Max-Age=");
     expect(authService.refresh).toHaveBeenCalledWith("current-refresh-token", "contract-agent");
   });
 
@@ -148,8 +155,10 @@ describe("AuthController contract", () => {
       .set("Cookie", "kagu_rt=current-refresh-token")
       .expect(204);
 
-    expect(response.headers["set-cookie"][0]).toContain("kagu_rt=");
-    expect(response.headers["set-cookie"][0]).toContain("Max-Age=0");
+    expect(findCookie(response, "kagu_at=")).toContain("kagu_at=");
+    expect(findCookie(response, "kagu_at=")).toContain("Max-Age=0");
+    expect(findCookie(response, "kagu_rt=")).toContain("kagu_rt=");
+    expect(findCookie(response, "kagu_rt=")).toContain("Max-Age=0");
     expect(authService.logout).toHaveBeenCalledWith("current-refresh-token");
   });
 
@@ -172,8 +181,9 @@ describe("AuthController contract", () => {
       .expect(200);
 
     expect(response.body).toEqual(authPayload);
-    expect(response.headers["set-cookie"][0]).toContain("kagu_rt=refresh-token-3");
-    expect(response.headers["set-cookie"][0]).toContain("Secure");
+    expect(findCookie(response, "kagu_at=")).toContain("Secure");
+    expect(findCookie(response, "kagu_rt=")).toContain("kagu_rt=refresh-token-3");
+    expect(findCookie(response, "kagu_rt=")).toContain("Secure");
     expect(authService.changePassword).toHaveBeenCalledWith(
       sessionUser,
       {

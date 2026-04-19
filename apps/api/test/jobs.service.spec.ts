@@ -402,8 +402,8 @@ describe("JobsService", () => {
   it("resolves allowed artifact downloads for managers", async () => {
     const storageDriver = createStorageDriverMock();
     storageDriver.resolveAccess.mockResolvedValue({
-      kind: "redirect",
-      url: "/api/storage/object-proxy?path=backups%2Fexports%2F2026-04-10%2Fexport.summary.json"
+      kind: "stream",
+      stream: "artifact-stream"
     });
 
     const service = new JobsService(
@@ -425,8 +425,8 @@ describe("JobsService", () => {
     );
     expect(result).toEqual({
       access: {
-        kind: "redirect",
-        url: "/api/storage/object-proxy?path=backups%2Fexports%2F2026-04-10%2Fexport.summary.json"
+        kind: "stream",
+        stream: "artifact-stream"
       },
       filename: "export.summary.json",
       contentType: "application/json"

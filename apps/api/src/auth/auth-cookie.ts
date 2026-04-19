@@ -1,16 +1,19 @@
+const ACCESS_COOKIE_NAME = "kagu_at";
 const REFRESH_COOKIE_NAME = "kagu_rt";
+const ACCESS_TOKEN_TTL_MS = 1000 * 60 * 30;
 const PERSISTENT_REFRESH_TTL_MS = 1000 * 60 * 60 * 24 * 30;
 const SESSION_REFRESH_TTL_MS = 1000 * 60 * 60 * 12;
 
 function serializeCookie(options: {
   name: string;
   value: string;
+  path: string;
   maxAgeMs?: number;
   secure?: boolean;
 }) {
   const parts = [
     `${options.name}=${encodeURIComponent(options.value)}`,
-    "Path=/api/auth",
+    `Path=${options.path}`,
     "HttpOnly",
     "SameSite=Lax"
   ];
@@ -31,7 +34,18 @@ export function buildRefreshCookie(refreshToken: string, rememberMe: boolean, se
   return serializeCookie({
     name: REFRESH_COOKIE_NAME,
     value: refreshToken,
+    path: "/api/auth",
     maxAgeMs: rememberMe ? PERSISTENT_REFRESH_TTL_MS : undefined,
+    secure
+  });
+}
+
+export function buildAccessCookie(accessToken: string, secure: boolean) {
+  return serializeCookie({
+    name: ACCESS_COOKIE_NAME,
+    value: accessToken,
+    path: "/api",
+    maxAgeMs: ACCESS_TOKEN_TTL_MS,
     secure
   });
 }
@@ -40,6 +54,20 @@ export function buildClearedRefreshCookie(secure: boolean) {
   return [
     `${REFRESH_COOKIE_NAME}=`,
     "Path=/api/auth",
+    "HttpOnly",
+    "SameSite=Lax",
+    secure ? "Secure" : null,
+    "Max-Age=0",
+    "Expires=Thu, 01 Jan 1970 00:00:00 GMT"
+  ]
+    .filter(Boolean)
+    .join("; ");
+}
+
+export function buildClearedAccessCookie(secure: boolean) {
+  return [
+    `${ACCESS_COOKIE_NAME}=`,
+    "Path=/api",
     "HttpOnly",
     "SameSite=Lax",
     secure ? "Secure" : null,
@@ -63,6 +91,22 @@ export function extractRefreshToken(cookieHeader?: string | null) {
   for (const segment of segments) {
     const [name, ...valueParts] = segment.trim().split("=");
     if (name === REFRESH_COOKIE_NAME) {
+      return decodeURIComponent(valueParts.join("="));
+    }
+  }
+
+  return null;
+}
+
+export function extractAccessToken(cookieHeader?: string | null) {
+  if (!cookieHeader) {
+    return null;
+  }
+
+  const segments = cookieHeader.split(";");
+  for (const segment of segments) {
+    const [name, ...valueParts] = segment.trim().split("=");
+    if (name === ACCESS_COOKIE_NAME) {
       return decodeURIComponent(valueParts.join("="));
     }
   }

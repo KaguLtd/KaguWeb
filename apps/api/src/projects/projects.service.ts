@@ -8,6 +8,8 @@ import {
 } from "@nestjs/common";
 import { FileCategory, FileScope, Prisma, Role } from "@prisma/client";
 import { randomUUID } from "crypto";
+import { readFile } from "node:fs/promises";
+import { cleanupUploadedTempFiles } from "../common/utils/upload-temp-storage";
 import { CurrentUserPayload } from "../common/decorators/current-user.decorator";
 import {
   ensureFileAllowed,
@@ -356,7 +358,12 @@ export class ProjectsService {
       throw new NotFoundException("Proje bulunamadi.");
     }
 
-    const stagedFiles = await this.stageMainFiles(project.storageRoot, dto, files);
+    let stagedFiles: StagedProjectFile[] = [];
+    try {
+      stagedFiles = await this.stageMainFiles(project.storageRoot, dto, files);
+    } finally {
+      await cleanupUploadedTempFiles(files);
+    }
 
     try {
       await this.prisma.$transaction(async (tx) => {
@@ -633,10 +640,10 @@ export class ProjectsService {
         } catch (error) {
           throw new BadRequestException((error as Error).message);
         }
-        const staged = await this.storageDriver.writeBuffer(
+        const staged = await this.persistUploadedFile(
           this.storagePaths.projectTimelineUploadDirectory(project.storageRoot, entryDate),
           sanitizeFilename(file.originalname),
-          file.buffer
+          file.path
         );
 
         stagedFiles.push({
@@ -706,6 +713,10 @@ export class ProjectsService {
     );
   }
 
+  async cleanupUploadedTempFiles(files: Express.Multer.File[] | undefined) {
+    await cleanupUploadedTempFiles(files);
+  }
+
   async assertProjectAccess(projectId: string, user: CurrentUserPayload) {
     const project = await this.prisma.project.findUnique({ where: { id: projectId } });
 
@@ -771,10 +782,10 @@ export class ProjectsService {
         }
 
         const title = dto.title && files.length === 1 ? dto.title : fileTitleFromName(file.originalname);
-        const staged = await this.storageDriver.writeBuffer(
+        const staged = await this.persistUploadedFile(
           this.storagePaths.projectMainUploadDirectory(storageRoot, title, new Date()),
           sanitizeFilename(file.originalname),
-          file.buffer
+          file.path
         );
 
         stagedFiles.push({
@@ -880,6 +891,14 @@ export class ProjectsService {
 
   private directoryNameFromStoragePath(storagePath: string) {
     return this.storagePaths.relativeDirectory(storagePath);
+  }
+
+  private async persistUploadedFile(relativeDirectory: string, filename: string, sourcePath: string) {
+    if (typeof this.storageDriver.writeFile === "function") {
+      return this.storageDriver.writeFile(relativeDirectory, filename, sourcePath);
+    }
+
+    return this.storageDriver.writeBuffer(relativeDirectory, filename, await readFile(sourcePath));
   }
 
   private projectListInclude() {

@@ -7,6 +7,7 @@ describe("validateAppEnv", () => {
     PORT: "4000",
     WEB_ORIGIN: "http://localhost:3000",
     STORAGE_ROOT: "./storage",
+    UPLOAD_TEMP_ROOT: "./runtime/tmp/uploads",
     STORAGE_DRIVER: "local"
   };
 
@@ -20,43 +21,10 @@ describe("validateAppEnv", () => {
     });
   });
 
-  it("accepts s3-compatible storage configuration", () => {
-    expect(
-      validateAppEnv({
-        ...baseEnv,
-        STORAGE_DRIVER: "s3-compatible",
-        STORAGE_PUBLIC_BASE_URL: "https://cdn.kagu.local",
-        OBJECT_STORAGE_ACCESS_MODE: "public",
-        OBJECT_STORAGE_ENDPOINT: "https://s3.kagu.local",
-        OBJECT_STORAGE_REGION: "eu-central-1",
-        OBJECT_STORAGE_BUCKET: "kagu-assets",
-        OBJECT_STORAGE_ACCESS_KEY_ID: "access-key",
-        OBJECT_STORAGE_SECRET_ACCESS_KEY: "secret-key"
-      })
-    ).toMatchObject({
-      STORAGE_DRIVER: "s3-compatible",
-      STORAGE_PUBLIC_BASE_URL: "https://cdn.kagu.local",
-      OBJECT_STORAGE_ACCESS_MODE: "public",
-      OBJECT_STORAGE_BUCKET: "kagu-assets"
-    });
-  });
-
-  it("accepts signed object storage access mode with ttl", () => {
-    expect(
-      validateAppEnv({
-        ...baseEnv,
-        STORAGE_DRIVER: "s3-compatible",
-        OBJECT_STORAGE_ACCESS_MODE: "signed",
-        OBJECT_STORAGE_ENDPOINT: "https://s3.kagu.local",
-        OBJECT_STORAGE_REGION: "eu-central-1",
-        OBJECT_STORAGE_BUCKET: "kagu-assets",
-        OBJECT_STORAGE_ACCESS_KEY_ID: "access-key",
-        OBJECT_STORAGE_SECRET_ACCESS_KEY: "secret-key",
-        OBJECT_STORAGE_SIGNED_URL_TTL_SECONDS: "900"
-      })
-    ).toMatchObject({
-      OBJECT_STORAGE_ACCESS_MODE: "signed",
-      OBJECT_STORAGE_SIGNED_URL_TTL_SECONDS: "900"
+  it("accepts upload temp root for disk-backed staging", () => {
+    expect(validateAppEnv(baseEnv)).toMatchObject({
+      STORAGE_DRIVER: "local",
+      UPLOAD_TEMP_ROOT: "./runtime/tmp/uploads"
     });
   });
 
@@ -87,49 +55,12 @@ describe("validateAppEnv", () => {
     ).toThrow("VAPID_PRIVATE_KEY is required when VAPID_PUBLIC_KEY is set.");
   });
 
-  it("rejects missing object storage secrets when object driver is selected", () => {
+  it("rejects missing upload temp root", () => {
     expect(() =>
       validateAppEnv({
         ...baseEnv,
-        STORAGE_DRIVER: "s3-compatible",
-        OBJECT_STORAGE_ACCESS_MODE: "public",
-        OBJECT_STORAGE_ENDPOINT: "https://s3.kagu.local",
-        OBJECT_STORAGE_REGION: "eu-central-1",
-        OBJECT_STORAGE_BUCKET: "kagu-assets"
+        UPLOAD_TEMP_ROOT: " "
       })
-    ).toThrow("OBJECT_STORAGE_ACCESS_KEY_ID is required when STORAGE_DRIVER is s3-compatible.");
-  });
-
-  it("rejects public object storage mode without a public base url", () => {
-    expect(() =>
-      validateAppEnv({
-        ...baseEnv,
-        STORAGE_DRIVER: "s3-compatible",
-        OBJECT_STORAGE_ACCESS_MODE: "public",
-        OBJECT_STORAGE_ENDPOINT: "https://s3.kagu.local",
-        OBJECT_STORAGE_REGION: "eu-central-1",
-        OBJECT_STORAGE_BUCKET: "kagu-assets",
-        OBJECT_STORAGE_ACCESS_KEY_ID: "access-key",
-        OBJECT_STORAGE_SECRET_ACCESS_KEY: "secret-key"
-      })
-    ).toThrow("STORAGE_PUBLIC_BASE_URL is required when OBJECT_STORAGE_ACCESS_MODE is public.");
-  });
-
-  it("rejects signed object storage mode without a valid ttl", () => {
-    expect(() =>
-      validateAppEnv({
-        ...baseEnv,
-        STORAGE_DRIVER: "s3-compatible",
-        OBJECT_STORAGE_ACCESS_MODE: "signed",
-        OBJECT_STORAGE_ENDPOINT: "https://s3.kagu.local",
-        OBJECT_STORAGE_REGION: "eu-central-1",
-        OBJECT_STORAGE_BUCKET: "kagu-assets",
-        OBJECT_STORAGE_ACCESS_KEY_ID: "access-key",
-        OBJECT_STORAGE_SECRET_ACCESS_KEY: "secret-key",
-        OBJECT_STORAGE_SIGNED_URL_TTL_SECONDS: "30"
-      })
-    ).toThrow(
-      "OBJECT_STORAGE_SIGNED_URL_TTL_SECONDS must be an integer of at least 60 when OBJECT_STORAGE_ACCESS_MODE is signed."
-    );
+    ).toThrow("UPLOAD_TEMP_ROOT is required.");
   });
 });

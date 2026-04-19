@@ -32,7 +32,8 @@ const blockedExtensions = new Set([
 const imageExtensions = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif"]);
 const inlineExtensions = new Set([".pdf", ...imageExtensions]);
 
-export const MAX_FILE_SIZE = 250 * 1024 * 1024;
+export const MAX_FILE_SIZE = 64 * 1024 * 1024;
+export const MAX_FILE_COUNT = 12;
 
 export function sanitizeFilename(name: string): string {
   return name
@@ -67,4 +68,3 @@ export function fileTitleFromName(name: string): string {
   const extension = extname(name);
   return name.slice(0, name.length - extension.length) || name;
 }
-

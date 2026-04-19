@@ -22,6 +22,8 @@ type ConsumeRateLimitResult = {
 
 @Injectable()
 export class RateLimitService {
+  // Single-instance in-memory limiter. Suitable for the planned single Ubuntu API process
+  // behind Caddy. Horizontal scaling would require a shared store such as Redis.
   private readonly entries = new Map<string, RateLimitEntry>();
 
   consume(params: ConsumeRateLimitParams): ConsumeRateLimitResult {

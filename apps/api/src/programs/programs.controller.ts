@@ -13,7 +13,6 @@ import {
 } from "@nestjs/common";
 import { FilesInterceptor } from "@nestjs/platform-express";
 import { Role } from "@prisma/client";
-import { memoryStorage } from "multer";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import type { CurrentUserPayload } from "../common/decorators/current-user.decorator";
 import { IdempotencyKey } from "../common/decorators/idempotency-key.decorator";
@@ -23,7 +22,7 @@ import { RolesGuard } from "../common/guards/roles.guard";
 import { RateLimit } from "../common/security/rate-limit.decorator";
 import { RateLimitGuard } from "../common/security/rate-limit.guard";
 import { TIMELINE_ENTRY_UPLOAD_RATE_LIMITS } from "../common/security/rate-limit-policies";
-import { MAX_FILE_SIZE } from "../common/utils/file-policy";
+import { uploadDiskStorageOptions } from "../common/utils/upload-temp-storage";
 import { AddProgramProjectDto } from "./dto/add-program-project.dto";
 import { AssignFieldUsersDto } from "./dto/assign-field-users.dto";
 import { CreateDailyProgramDto } from "./dto/create-daily-program.dto";
@@ -122,10 +121,7 @@ export class ProgramsController {
   @UseGuards(RateLimitGuard)
   @RateLimit(...TIMELINE_ENTRY_UPLOAD_RATE_LIMITS)
   @UseInterceptors(
-    FilesInterceptor("files", 12, {
-      storage: memoryStorage(),
-      limits: { fileSize: MAX_FILE_SIZE }
-    })
+    FilesInterceptor("files", 12, uploadDiskStorageOptions)
   )
   createEntry(
     @Param("id") id: string,

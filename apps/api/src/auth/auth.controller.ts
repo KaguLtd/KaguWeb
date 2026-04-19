@@ -21,6 +21,8 @@ import {
 import { RateLimit } from "../common/security/rate-limit.decorator";
 import { RateLimitGuard } from "../common/security/rate-limit.guard";
 import {
+  buildAccessCookie,
+  buildClearedAccessCookie,
   buildClearedRefreshCookie,
   buildRefreshCookie,
   extractRefreshToken
@@ -51,10 +53,10 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response
   ) {
     const result = await this.authService.login(dto, this.headerValue(request.headers["user-agent"]));
-    response.setHeader(
-      "Set-Cookie",
+    response.setHeader("Set-Cookie", [
+      buildAccessCookie(result.auth.accessToken, this.isSecureRequest(request)),
       buildRefreshCookie(result.refreshToken, result.rememberMe, this.isSecureRequest(request))
-    );
+    ]);
     return result.auth;
   }
 
@@ -67,10 +69,10 @@ export class AuthController {
       refreshToken ?? "",
       this.headerValue(request.headers["user-agent"])
     );
-    response.setHeader(
-      "Set-Cookie",
+    response.setHeader("Set-Cookie", [
+      buildAccessCookie(result.auth.accessToken, this.isSecureRequest(request)),
       buildRefreshCookie(result.refreshToken, result.rememberMe, this.isSecureRequest(request))
-    );
+    ]);
     return result.auth;
   }
 
@@ -81,7 +83,10 @@ export class AuthController {
   async logout(@Req() request: Request, @Res({ passthrough: true }) response: Response) {
     const refreshToken = extractRefreshToken(request.headers.cookie);
     await this.authService.logout(refreshToken);
-    response.setHeader("Set-Cookie", buildClearedRefreshCookie(this.isSecureRequest(request)));
+    response.setHeader("Set-Cookie", [
+      buildClearedAccessCookie(this.isSecureRequest(request)),
+      buildClearedRefreshCookie(this.isSecureRequest(request))
+    ]);
   }
 
   @Patch("password")
@@ -100,10 +105,10 @@ export class AuthController {
       refreshToken,
       this.headerValue(request.headers["user-agent"])
     );
-    response.setHeader(
-      "Set-Cookie",
+    response.setHeader("Set-Cookie", [
+      buildAccessCookie(result.auth.accessToken, this.isSecureRequest(request)),
       buildRefreshCookie(result.refreshToken, result.rememberMe, this.isSecureRequest(request))
-    );
+    ]);
     return result.auth;
   }
 }

@@ -8,21 +8,30 @@
   --surface-contrast: #1d2833;
   --surface-contrast-soft: #2a3745;
   --text: #17212b;
-  --text-muted: #66717f;
+  --text-muted: #646f7c;
+  --text-subtle: #6e7a87;
   --line: #dbd5cb;
-  --line-strong: #bfb7aa;
+  --line-strong: #b9b1a4;
+  --line-interactive: #8e877b;
   --accent: #b86c2f;
   --accent-strong: #9e5823;
   --accent-soft: rgba(184, 108, 47, 0.14);
   --accent-quiet: #f7e8da;
+  --brand-solid-start: #9f5b27;
+  --brand-solid-end: #a9622b;
+  --on-brand: #ffffff;
   --info: #466f84;
   --info-soft: #e7f0f4;
+  --info-strong: #305366;
   --success: #2f8065;
   --success-soft: #e6f4ee;
+  --success-strong: #25644f;
   --warning: #ad7a22;
   --warning-soft: #f8ebcf;
+  --warning-strong: #8c6217;
   --danger: #b3524d;
   --danger-soft: #fae5e1;
+  --danger-strong: #8f312d;
   --shadow-sm: 0 8px 22px rgba(23, 33, 43, 0.08);
   --shadow-md: 0 18px 46px rgba(23, 33, 43, 0.12);
   --shadow-lg: 0 28px 72px rgba(23, 33, 43, 0.18);
@@ -177,7 +186,7 @@ textarea:disabled {
   width: 100%;
   min-height: 40px;
   padding: 10px 12px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-interactive);
   border-radius: 4px;
   background: var(--surface-strong);
   color: var(--text);
@@ -201,15 +210,15 @@ textarea:disabled {
 
 .input::placeholder,
 .textarea::placeholder {
-  color: #7a8593;
+  color: var(--text-subtle);
 }
 
 .input:focus,
 .select:focus,
 .textarea:focus {
   outline: none;
-  border-color: rgba(184, 108, 47, 0.42);
-  box-shadow: 0 0 0 4px rgba(184, 108, 47, 0.12);
+  border-color: var(--accent-strong);
+  box-shadow: 0 0 0 4px rgba(184, 108, 47, 0.16);
 }
 
 .button {
@@ -221,8 +230,8 @@ textarea:disabled {
   padding: 8px 13px;
   border: 1px solid transparent;
   border-radius: 4px;
-  background: linear-gradient(180deg, var(--accent), #cb7b3b);
-  color: #fff9f1;
+  background: linear-gradient(180deg, var(--brand-solid-start), var(--brand-solid-end));
+  color: var(--on-brand);
   font-weight: 700;
   font-size: 0.8rem;
   letter-spacing: 0.01em;
@@ -265,11 +274,13 @@ textarea:disabled {
 
 .button.success {
   background: linear-gradient(135deg, var(--success), #3e9779);
+  color: #ffffff;
   box-shadow: 0 6px 16px rgba(47, 128, 101, 0.14);
 }
 
 .button.danger {
   background: linear-gradient(135deg, var(--danger), #cb6a64);
+  color: #ffffff;
   box-shadow: 0 6px 16px rgba(179, 82, 77, 0.14);
 }
 
@@ -292,25 +303,25 @@ textarea:disabled {
   border: 1px solid rgba(70, 111, 132, 0.18);
   border-radius: 5px;
   background: var(--info-soft);
-  color: #305366;
+  color: var(--info-strong);
 }
 
 .alert-info {
   border-color: rgba(70, 111, 132, 0.18);
   background: var(--info-soft);
-  color: #305366;
+  color: var(--info-strong);
 }
 
 .alert-success {
   border-color: rgba(47, 128, 101, 0.18);
   background: var(--success-soft);
-  color: #25644f;
+  color: var(--success-strong);
 }
 
 .alert-error {
   border-color: rgba(179, 82, 77, 0.18);
   background: var(--danger-soft);
-  color: #8f312d;
+  color: var(--danger-strong);
 }
 
 .empty {

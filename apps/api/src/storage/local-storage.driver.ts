@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { appendFile, mkdir, open, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { appendFile, copyFile, mkdir, open, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -43,6 +43,20 @@ export class LocalStorageDriver extends StorageDriver {
   }
 
   async writeBuffer(relativeDirectory: string, filename: string, buffer: Buffer): Promise<StorageFileWriteResult> {
+    const target = await this.prepareWriteTarget(relativeDirectory, filename);
+    await writeFile(target.absolutePath, buffer);
+
+    return target;
+  }
+
+  async writeFile(relativeDirectory: string, filename: string, sourcePath: string): Promise<StorageFileWriteResult> {
+    const target = await this.prepareWriteTarget(relativeDirectory, filename);
+    await copyFile(sourcePath, target.absolutePath);
+
+    return target;
+  }
+
+  private async prepareWriteTarget(relativeDirectory: string, filename: string): Promise<StorageFileWriteResult> {
     const normalizedDirectory = normalizeStorageRelativePath(relativeDirectory);
     const absoluteDirectory = this.resolvePath(normalizedDirectory);
     await mkdir(absoluteDirectory, { recursive: true });
@@ -50,7 +64,6 @@ export class LocalStorageDriver extends StorageDriver {
     const storageName = `${randomUUID()}-${filename}`;
     const relativePath = normalizeStorageRelativePath(`${normalizedDirectory}/${storageName}`);
     const absolutePath = this.resolvePath(relativePath);
-    await writeFile(absolutePath, buffer);
 
     return {
       absolutePath,

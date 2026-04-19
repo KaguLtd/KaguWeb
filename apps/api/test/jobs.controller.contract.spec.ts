@@ -1,5 +1,6 @@
 import { ValidationPipe } from "@nestjs/common";
 import type { CanActivate, ExecutionContext, INestApplication } from "@nestjs/common";
+import { Readable } from "node:stream";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { ROLES_KEY } from "../src/common/decorators/roles.decorator";
@@ -240,8 +241,8 @@ describe("JobsController contract", () => {
   it("GET /api/jobs/artifacts/download forwards the artifact path", async () => {
     jobsService.resolveArtifactDownload.mockResolvedValue({
       access: {
-        kind: "redirect",
-        url: "/api/storage/object-proxy?path=backups%2Fexports%2F2026-04-10%2Fexport.summary.json"
+        kind: "stream",
+        stream: Readable.from(['{"ok":true}'])
       },
       filename: "export.summary.json",
       contentType: "application/json"
@@ -249,11 +250,10 @@ describe("JobsController contract", () => {
 
     const response = await request(app.getHttpServer())
       .get("/api/jobs/artifacts/download?path=backups/exports/2026-04-10/export.summary.json")
-      .expect(302);
+      .expect(200);
 
-    expect(response.headers.location).toBe(
-      "/api/storage/object-proxy?path=backups%2Fexports%2F2026-04-10%2Fexport.summary.json"
-    );
+    expect(response.headers["content-type"]).toContain("application/json");
+    expect(response.headers["content-disposition"]).toContain('attachment; filename="export.summary.json"');
     expect(jobsService.resolveArtifactDownload).toHaveBeenCalledWith(
       {
         sub: "manager-1",

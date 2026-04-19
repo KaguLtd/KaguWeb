@@ -8,6 +8,10 @@ function isAllowedWebOrigin(origin: string, configuredOrigin: string) {
     return true;
   }
 
+  if (process.env.NODE_ENV === "production") {
+    return false;
+  }
+
   const localOrigins = new Set(["http://localhost:3000", "http://127.0.0.1:3000"]);
   if (localOrigins.has(origin)) {
     return true;
@@ -24,6 +28,7 @@ async function bootstrap() {
   const configuredOrigin = configService.getOrThrow<string>("WEB_ORIGIN");
   const port = Number(configService.getOrThrow<string>("PORT"));
 
+  app.getHttpAdapter().getInstance().set("trust proxy", 1);
   app.setGlobalPrefix("api");
   app.enableCors({
     origin(origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) {

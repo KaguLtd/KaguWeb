@@ -134,7 +134,7 @@ export function LeafletSurface({
       {lines.map((line) => (
         <Polyline
           key={line.id}
-          color={line.color ?? "#0d6efd"}
+          color={line.color ?? "#466f84"}
           pathOptions={{ weight: 4, opacity: 0.78 }}
           positions={line.points}
         />

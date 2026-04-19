@@ -1,0 +1,20 @@
+[Unit]
+Description=Kagu Web
+After=network.target kagu-api.service
+Wants=kagu-api.service
+
+[Service]
+Type=simple
+User=kagu
+Group=kagu
+WorkingDirectory=/srv/kagu/app
+Environment=NODE_ENV=production
+EnvironmentFile=/srv/kagu/app/.env
+ExecStart=/usr/bin/npm run start --workspace @kagu/web
+Restart=always
+RestartSec=5
+StandardOutput=append:/srv/kagu/runtime/web.log
+StandardError=append:/srv/kagu/runtime/web.err.log
+
+[Install]
+WantedBy=multi-user.target

@@ -29,6 +29,7 @@ describe("ProjectsService", () => {
       resolveAccess: jest.fn(),
       pathExists: jest.fn(),
       writeBuffer: jest.fn(),
+      writeFile: jest.fn(),
       writeText: jest.fn(),
       appendJsonLine: jest.fn(),
       moveTree: jest.fn(),
@@ -249,7 +250,7 @@ describe("ProjectsService", () => {
     const storageService = createStorageServiceMock();
     const storageDriver = createStorageDriverMock();
     const storagePaths = createStoragePathServiceMock();
-    storageDriver.writeBuffer.mockResolvedValue({
+    storageDriver.writeFile.mockResolvedValue({
       absolutePath: "C:/storage/projects/project-1/main/proje/a.pdf",
       relativeDirectory: "projects/project-1/main/proje",
       relativePath: "projects/project-1/main/proje/a.pdf"
@@ -270,7 +271,7 @@ describe("ProjectsService", () => {
           {
             originalname: "a.pdf",
             mimetype: "application/pdf",
-            buffer: Buffer.from("pdf"),
+            path: "C:/tmp/a.pdf",
             size: 3
           } as Express.Multer.File
         ],

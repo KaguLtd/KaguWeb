@@ -28,6 +28,7 @@ export abstract class StorageDriver {
   abstract ensureDirectory(relativePath: string): Promise<StorageWriteResult>;
   abstract pathExists(relativePath: string): Promise<boolean>;
   abstract writeBuffer(relativeDirectory: string, filename: string, buffer: Buffer): Promise<StorageFileWriteResult>;
+  abstract writeFile(relativeDirectory: string, filename: string, sourcePath: string): Promise<StorageFileWriteResult>;
   abstract writeText(relativePath: string, contents: string): Promise<StorageWriteResult>;
   abstract appendJsonLine(relativePath: string, payload: unknown): Promise<void>;
   abstract moveTree(fromRelativePath: string, toRelativePath: string): Promise<void>;
