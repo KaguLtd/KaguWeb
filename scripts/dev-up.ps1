@@ -133,7 +133,13 @@ else {
   Write-Output 'STEP prisma-generate'
   & npm.cmd run prisma:generate
   if ($LASTEXITCODE -ne 0) {
-    throw "Prisma generate basarisiz oldu."
+    $prismaClientPath = Join-Path $repoRoot 'node_modules\@prisma\client\index.js'
+    if (Test-Path $prismaClientPath) {
+      Write-Warning "Prisma generate basarisiz oldu ancak mevcut client bulundu, devam ediliyor."
+    }
+    else {
+      throw "Prisma generate basarisiz oldu."
+    }
   }
 
   Write-Output 'STEP db-init'

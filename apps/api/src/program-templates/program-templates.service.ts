@@ -63,6 +63,46 @@ type TemplateSummaryRecord = {
   templateProjects: TemplateProjectSummary[];
 };
 
+type TemplateMaterializationProjectRecord = {
+  projectId: string;
+  sortOrder: number;
+  project: {
+    id: string;
+    storageRoot: string;
+    name: string;
+  };
+  assignments: Array<{
+    userId: string;
+    user: {
+      id: string;
+      role: Role;
+      isActive: boolean;
+    };
+  }>;
+};
+
+type TemplateMaterializationRecord = {
+  id: string;
+  name: string;
+  managerNote: string | null;
+  isActive: boolean;
+  recurrenceRules: TemplateRuleRecord[];
+  templateProjects: TemplateMaterializationProjectRecord[];
+};
+
+type DailyProgramSeedRecord = {
+  id: string;
+  date: Date;
+  managerNote: string | null;
+  _count: {
+    programProjects: number;
+  };
+};
+
+type ApplyTemplateOptions = {
+  emitEvents: boolean;
+};
+
 @Injectable()
 export class ProgramTemplatesService {
   constructor(
@@ -366,6 +406,40 @@ export class ProgramTemplatesService {
     return this.getOne(id, actor);
   }
 
+  async remove(id: string, actor: CurrentUserPayload) {
+    this.assertManager(actor);
+
+    const existingTemplate = await this.prisma.programTemplate.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true
+      }
+    });
+
+    if (!existingTemplate) {
+      throw new NotFoundException("Program template bulunamadi.");
+    }
+
+    await this.prisma.programTemplate.delete({
+      where: { id }
+    });
+
+    await this.storageService.appendSystemEvent({
+      actor,
+      eventType: "PROGRAM_TEMPLATE_DELETED",
+      payload: {
+        templateId: id,
+        name: existingTemplate.name
+      }
+    });
+
+    return {
+      success: true,
+      id
+    };
+  }
+
   async setActive(id: string, isActive: boolean, actor: CurrentUserPayload) {
     this.assertManager(actor);
 
@@ -394,6 +468,110 @@ export class ProgramTemplatesService {
     });
 
     return this.getOne(id, actor);
+  }
+
+  async seedDailyProgramForDate(date: string | Date, actor: CurrentUserPayload) {
+    this.assertManager(actor);
+
+    const targetDate = toDateOnly(date);
+    const existingProgram = await this.prisma.dailyProgram.findUnique({
+      where: { date: targetDate },
+      select: {
+        id: true,
+        date: true,
+        managerNote: true,
+        _count: {
+          select: {
+            programProjects: true
+          }
+        }
+      }
+    });
+
+    if (existingProgram && this.hasProgramContent(existingProgram as DailyProgramSeedRecord)) {
+      return { seeded: false, templateCount: 0 };
+    }
+
+    const templates = await this.findActiveTemplatesForRange(targetDate, this.addDays(targetDate, 1));
+    const matchingTemplates = templates.filter((template) =>
+      this.matchesRule(template.recurrenceRules[0], targetDate)
+    );
+
+    for (const template of matchingTemplates) {
+      await this.applyTemplateToDate(template, targetDate, actor, { emitEvents: false });
+    }
+
+    return {
+      seeded: matchingTemplates.length > 0,
+      templateCount: matchingTemplates.length
+    };
+  }
+
+  async seedDailyProgramsForMonth(monthValue: string, actor: CurrentUserPayload) {
+    this.assertManager(actor);
+
+    const [year, month] = monthValue.split("-").map(Number);
+    const start = new Date(Date.UTC(year, month - 1, 1));
+    const end = new Date(Date.UTC(year, month, 1));
+
+    const [existingPrograms, templates] = await Promise.all([
+      this.prisma.dailyProgram.findMany({
+        where: {
+          date: {
+            gte: start,
+            lt: end
+          }
+        },
+        select: {
+          id: true,
+          date: true,
+          managerNote: true,
+          _count: {
+            select: {
+              programProjects: true
+            }
+          }
+        }
+      }),
+      this.findActiveTemplatesForRange(start, end)
+    ]);
+
+    if (!templates.length) {
+      return { seededDateCount: 0, templateCount: 0 };
+    }
+
+    const existingProgramsByDate = new Map(
+      (existingPrograms as DailyProgramSeedRecord[]).map((program) => [formatDateOnly(program.date), program])
+    );
+
+    let seededDateCount = 0;
+
+    for (let currentDate = start; currentDate < end; currentDate = this.addDays(currentDate, 1)) {
+      const dateKey = formatDateOnly(currentDate);
+      const existingProgram = existingProgramsByDate.get(dateKey);
+      if (existingProgram && this.hasProgramContent(existingProgram)) {
+        continue;
+      }
+
+      const matchingTemplates = templates.filter((template) =>
+        this.matchesRule(template.recurrenceRules[0], currentDate)
+      );
+
+      if (!matchingTemplates.length) {
+        continue;
+      }
+
+      for (const template of matchingTemplates) {
+        await this.applyTemplateToDate(template, currentDate, actor, { emitEvents: false });
+      }
+
+      seededDateCount += 1;
+    }
+
+    return {
+      seededDateCount,
+      templateCount: templates.length
+    };
   }
 
   async previewMaterialization(id: string, dto: MaterializeProgramTemplateDto, actor: CurrentUserPayload) {
@@ -537,35 +715,7 @@ export class ProgramTemplatesService {
         createdAssignmentCount: result.createdAssignmentCount
       }),
       action: async () => {
-        const template = await this.prisma.programTemplate.findUnique({
-          where: { id },
-          include: {
-            recurrenceRules: true,
-            templateProjects: {
-              orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-              include: {
-                project: {
-                  select: {
-                    id: true,
-                    storageRoot: true,
-                    name: true
-                  }
-                },
-                assignments: {
-                  include: {
-                    user: {
-                      select: {
-                        id: true,
-                        role: true,
-                        isActive: true
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        });
+        const template = await this.getMaterializationTemplate(id);
 
         if (!template) {
           throw new NotFoundException("Program template bulunamadi.");
@@ -584,125 +734,7 @@ export class ProgramTemplatesService {
           });
           throw new BadRequestException("Template secilen tarihe uymuyor.");
         }
-
-        const dailyProgram = await this.prisma.dailyProgram.upsert({
-          where: { date: targetDate },
-          update: {},
-          create: {
-            date: targetDate,
-            createdById: actor.sub,
-            managerNote: template.managerNote ?? null
-          }
-        });
-
-        let createdProjectCount = 0;
-        let createdAssignmentCount = 0;
-
-        for (const templateProject of template.templateProjects) {
-          const existingProgramProject = await this.prisma.dailyProgramProject.findUnique({
-            where: {
-              dailyProgramId_projectId: {
-                dailyProgramId: dailyProgram.id,
-                projectId: templateProject.projectId
-              }
-            },
-            select: {
-              id: true
-            }
-          });
-          const programProject = await this.prisma.dailyProgramProject.upsert({
-            where: {
-              dailyProgramId_projectId: {
-                dailyProgramId: dailyProgram.id,
-                projectId: templateProject.projectId
-              }
-            },
-            update: {},
-            create: {
-              dailyProgramId: dailyProgram.id,
-              projectId: templateProject.projectId,
-              addedById: actor.sub,
-              sortOrder: templateProject.sortOrder
-            }
-          });
-
-          const existingAssignments = await this.prisma.projectAssignment.findMany({
-            where: {
-              dailyProgramProjectId: programProject.id
-            },
-            select: {
-              userId: true,
-              isActive: true,
-              id: true
-            }
-          });
-
-          for (const templateAssignment of templateProject.assignments) {
-            const existing = existingAssignments.find(
-              (assignment) => assignment.userId === templateAssignment.userId
-            );
-
-            if (!existing) {
-              await this.prisma.projectAssignment.create({
-                data: {
-                  dailyProgramProjectId: programProject.id,
-                  userId: templateAssignment.userId,
-                  assignedById: actor.sub,
-                  isActive: true
-                }
-              });
-              createdAssignmentCount += 1;
-              continue;
-            }
-
-            if (!existing.isActive) {
-              await this.prisma.projectAssignment.update({
-                where: { id: existing.id },
-                data: { isActive: true }
-              });
-            }
-          }
-
-          await this.storageService.appendProjectEvent({
-            project: templateProject.project,
-            actor,
-            eventType: "PROGRAM_TEMPLATE_MATERIALIZED",
-            payload: {
-              templateId: template.id,
-              templateName: template.name,
-              targetDate: formatDateOnly(targetDate),
-              dailyProgramId: dailyProgram.id
-            }
-          });
-
-          if (!existingProgramProject) {
-            createdProjectCount += 1;
-          }
-        }
-
-        await this.storageService.appendProgramEvent({
-          programDate: targetDate,
-          actor,
-          eventType: "PROGRAM_TEMPLATE_MATERIALIZED",
-          payload: {
-            templateId: template.id,
-            templateName: template.name,
-            targetDate: formatDateOnly(targetDate),
-            dailyProgramId: dailyProgram.id,
-            projectCount: template.templateProjects.length,
-            createdProjectCount,
-            createdAssignmentCount
-          }
-        });
-
-        return {
-          templateId: template.id,
-          dailyProgramId: dailyProgram.id,
-          date: formatDateOnly(targetDate),
-          projectCount: template.templateProjects.length,
-          createdProjectCount,
-          createdAssignmentCount
-        };
+        return this.applyTemplateToDate(template, targetDate, actor, { emitEvents: true });
       }
     });
   }
@@ -800,6 +832,229 @@ export class ProgramTemplatesService {
     const day = targetDate.getUTCDay();
     const isoDay = day === 0 ? 7 : day;
     return rule.weekdays.includes(isoDay);
+  }
+
+  private async getMaterializationTemplate(id: string) {
+    return (await this.prisma.programTemplate.findUnique({
+      where: { id },
+      include: {
+        recurrenceRules: true,
+        templateProjects: {
+          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+          include: {
+            project: {
+              select: {
+                id: true,
+                storageRoot: true,
+                name: true
+              }
+            },
+            assignments: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    role: true,
+                    isActive: true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    })) as TemplateMaterializationRecord | null;
+  }
+
+  private async findActiveTemplatesForRange(start: Date, endExclusive: Date) {
+    return (await this.prisma.programTemplate.findMany({
+      where: {
+        isActive: true,
+        recurrenceRules: {
+          some: {
+            frequency: RecurrenceFrequency.WEEKLY,
+            startDate: {
+              lt: endExclusive
+            },
+            OR: [
+              {
+                endDate: null
+              },
+              {
+                endDate: {
+                  gte: start
+                }
+              }
+            ]
+          }
+        }
+      },
+      include: {
+        recurrenceRules: true,
+        templateProjects: {
+          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+          include: {
+            project: {
+              select: {
+                id: true,
+                storageRoot: true,
+                name: true
+              }
+            },
+            assignments: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    role: true,
+                    isActive: true
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      orderBy: [{ createdAt: "asc" }]
+    })) as TemplateMaterializationRecord[];
+  }
+
+  private async applyTemplateToDate(
+    template: TemplateMaterializationRecord,
+    targetDate: Date,
+    actor: CurrentUserPayload,
+    options: ApplyTemplateOptions
+  ) {
+    const dailyProgram = await this.prisma.dailyProgram.upsert({
+      where: { date: targetDate },
+      update: {},
+      create: {
+        date: targetDate,
+        createdById: actor.sub,
+        managerNote: template.managerNote ?? null
+      }
+    });
+
+    let createdProjectCount = 0;
+    let createdAssignmentCount = 0;
+
+    for (const templateProject of template.templateProjects) {
+      const existingProgramProject = await this.prisma.dailyProgramProject.findUnique({
+        where: {
+          dailyProgramId_projectId: {
+            dailyProgramId: dailyProgram.id,
+            projectId: templateProject.projectId
+          }
+        },
+        select: {
+          id: true
+        }
+      });
+      const programProject = await this.prisma.dailyProgramProject.upsert({
+        where: {
+          dailyProgramId_projectId: {
+            dailyProgramId: dailyProgram.id,
+            projectId: templateProject.projectId
+          }
+        },
+        update: {},
+        create: {
+          dailyProgramId: dailyProgram.id,
+          projectId: templateProject.projectId,
+          addedById: actor.sub,
+          sortOrder: templateProject.sortOrder
+        }
+      });
+
+      const existingAssignments = await this.prisma.projectAssignment.findMany({
+        where: {
+          dailyProgramProjectId: programProject.id
+        },
+        select: {
+          userId: true,
+          isActive: true,
+          id: true
+        }
+      });
+
+      for (const templateAssignment of templateProject.assignments) {
+        const existing = existingAssignments.find(
+          (assignment) => assignment.userId === templateAssignment.userId
+        );
+
+        if (!existing) {
+          await this.prisma.projectAssignment.create({
+            data: {
+              dailyProgramProjectId: programProject.id,
+              userId: templateAssignment.userId,
+              assignedById: actor.sub,
+              isActive: true
+            }
+          });
+          createdAssignmentCount += 1;
+          continue;
+        }
+
+        if (!existing.isActive) {
+          await this.prisma.projectAssignment.update({
+            where: { id: existing.id },
+            data: { isActive: true }
+          });
+        }
+      }
+
+      if (options.emitEvents) {
+        await this.storageService.appendProjectEvent({
+          project: templateProject.project,
+          actor,
+          eventType: "PROGRAM_TEMPLATE_MATERIALIZED",
+          payload: {
+            templateId: template.id,
+            templateName: template.name,
+            targetDate: formatDateOnly(targetDate),
+            dailyProgramId: dailyProgram.id
+          }
+        });
+      }
+
+      if (!existingProgramProject) {
+        createdProjectCount += 1;
+      }
+    }
+
+    if (options.emitEvents) {
+      await this.storageService.appendProgramEvent({
+        programDate: targetDate,
+        actor,
+        eventType: "PROGRAM_TEMPLATE_MATERIALIZED",
+        payload: {
+          templateId: template.id,
+          templateName: template.name,
+          targetDate: formatDateOnly(targetDate),
+          dailyProgramId: dailyProgram.id,
+          projectCount: template.templateProjects.length,
+          createdProjectCount,
+          createdAssignmentCount
+        }
+      });
+    }
+
+    return {
+      templateId: template.id,
+      dailyProgramId: dailyProgram.id,
+      date: formatDateOnly(targetDate),
+      projectCount: template.templateProjects.length,
+      createdProjectCount,
+      createdAssignmentCount
+    };
+  }
+
+  private hasProgramContent(program: DailyProgramSeedRecord) {
+    return program._count.programProjects > 0 || Boolean(program.managerNote?.trim());
+  }
+
+  private addDays(value: Date, days: number) {
+    return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate() + days));
   }
 
   private assertValidRule(startDate: string, endDate?: string) {

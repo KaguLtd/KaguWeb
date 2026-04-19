@@ -9,7 +9,7 @@ import {
   TimelineEntry
 } from "@kagu/contracts";
 import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { ApiError, apiFetch, fetchAuthorizedBlob } from "../lib/api";
+import { ApiError, apiFetch } from "../lib/api";
 import {
   enqueueFieldOutboxEntry,
   getFieldOutboxCount,
@@ -30,6 +30,7 @@ import {
   formatDateValue,
   getTodayLocal
 } from "../lib/date";
+import { openProtectedFile as openProtectedFileWithAuth } from "../lib/protected-file";
 import { AlertMessage } from "./alert-message";
 import {
   registerFieldOutboxSyncListener,
@@ -1007,6 +1008,11 @@ export function FieldWorkspace({
       .getAll("files")
       .filter((value): value is File => value instanceof File && value.size > 0);
 
+    if (!note && !selectedFiles.length) {
+      setMessage("Not veya en az bir dosya ekleyin.");
+      return;
+    }
+
     try {
       await apiFetch(
         `/program-projects/${selectedAssignment.dailyProgramProjectId}/entries`,
@@ -1129,30 +1135,23 @@ export function FieldWorkspace({
   }
 
   async function openProtectedFile(path: string, mode: "preview" | "download") {
-    const { objectUrl, filename } = await fetchAuthorizedBlob(path, token);
-    if (mode === "preview") {
-      if (previewObjectUrlRef.current) {
-        URL.revokeObjectURL(previewObjectUrlRef.current);
-      }
-      previewObjectUrlRef.current = objectUrl;
-      setPreviewUrl(objectUrl);
-      setPreviewName(filename);
-      return;
+    try {
+      await openProtectedFileWithAuth({
+        mode,
+        path,
+        token,
+        onPreview: ({ filename, objectUrl }) => {
+          if (previewObjectUrlRef.current) {
+            URL.revokeObjectURL(previewObjectUrlRef.current);
+          }
+          previewObjectUrlRef.current = objectUrl;
+          setPreviewUrl(objectUrl);
+          setPreviewName(filename);
+        }
+      });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Dosya acilamadi.");
     }
-
-    const isMobileDownloadClient = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    const link = document.createElement("a");
-    link.href = objectUrl;
-    if (isMobileDownloadClient) {
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-    } else {
-      link.download = filename;
-    }
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(objectUrl), isMobileDownloadClient ? 30000 : 1000);
   }
 
   function openMapsForAssignment(assignment: FieldAssignedProjectSummary) {

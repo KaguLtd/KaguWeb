@@ -12,6 +12,7 @@ import { apiFetch, isAbortError } from "../lib/api";
 import { formatDisplayDateTime } from "../lib/date";
 import { AlertMessage } from "./alert-message";
 import { useAuth } from "./auth-provider";
+import { ManagerQuickAccessChip } from "./manager-quick-access";
 import { ManagerDrawer, ManagerDrawerSection } from "./manager-ui";
 import { TrackingMap } from "./tracking-map";
 import { BellIcon, LocationArrowIcon, MapIcon, UsersIcon } from "./ui-icons";
@@ -91,6 +92,48 @@ export function ManagerTrackingModule() {
   const selectedProjectLabel = projects.find((project) => project.id === selectedProjectId)?.name ?? "Tüm projeler";
   const selectedUserLabel =
     fieldUsers.find((user) => user.id === selectedUserId)?.displayName ?? "Tüm saha personeli";
+  const projectLocationRecords = useMemo(
+    () =>
+      (overview?.projectLocations ?? []).map((project) => ({
+        id: project.projectId,
+        title: project.projectName,
+        subtitle: project.locationLabel ?? "Konum etiketi yok",
+        description: `${project.latitude}, ${project.longitude}`
+      })),
+    [overview?.projectLocations]
+  );
+  const activeFieldRecords = useMemo(
+    () =>
+      fieldMarkers.map((marker) => ({
+        id: marker.id,
+        title: marker.label,
+        subtitle: marker.description,
+        description: "Aktif saha isareti"
+      })),
+    [fieldMarkers]
+  );
+  const campaignRecords = useMemo(
+    () =>
+      campaigns.map((campaign) => ({
+        id: campaign.id,
+        title: campaign.title,
+        subtitle: campaign.sender.displayName,
+        description: campaign.message
+      })),
+    [campaigns]
+  );
+  void campaignRecords;
+  const feedRecords = useMemo(
+    () =>
+      feedRows.map((row) => ({
+        id: row.id,
+        title: row.subject,
+        subtitle: `${row.actor} / ${row.type}`,
+        description: row.detail,
+        meta: [formatDisplayDateTime(row.createdAt)]
+      })),
+    [feedRows]
+  );
   const trackingSignalCards = [
     {
       label: "Proje işareti",
@@ -368,8 +411,28 @@ export function ManagerTrackingModule() {
               <div className="manager-inline-actions">
                 <span className="manager-inline-badge is-info">Proje işareti</span>
                 <span className="manager-inline-badge is-positive">Saha işareti</span>
-                <span className="manager-mini-chip">{overview?.projectLocations.length ?? 0} proje</span>
-                <span className="manager-mini-chip">{fieldMarkers.length} aktif saha</span>
+                <ManagerQuickAccessChip
+                  ariaLabel="Haritadaki projeleri ac"
+                  payload={{
+                    title: "Haritadaki projeler",
+                    summary: "Secili filtre altindaki proje konumlari listeleniyor.",
+                    records: projectLocationRecords,
+                    links: [{ href: "/dashboard/tracking", label: "Takip" }]
+                  }}
+                >
+                  {overview?.projectLocations.length ?? 0} proje
+                </ManagerQuickAccessChip>
+                <ManagerQuickAccessChip
+                  ariaLabel="Aktif saha kullanicilarini ac"
+                  payload={{
+                    title: "Aktif saha kullanicilari",
+                    summary: "Son konumuyla gorunen saha kullanicilari listeleniyor.",
+                    records: activeFieldRecords,
+                    links: [{ href: "/dashboard/tracking", label: "Takip" }]
+                  }}
+                >
+                  {fieldMarkers.length} aktif saha
+                </ManagerQuickAccessChip>
               </div>
             </div>
             <TrackingMap
@@ -391,7 +454,17 @@ export function ManagerTrackingModule() {
                 <span className="manager-section-kicker">Bildirimler ve oturumlar</span>
                 <h3 className="manager-section-title">Canlı akış</h3>
               </div>
-              <span className="manager-mini-chip">{feedRows.length} kayıt</span>
+              <ManagerQuickAccessChip
+                ariaLabel="Canli akis kayitlarini ac"
+                payload={{
+                  title: "Canli akis",
+                  summary: "Oturum ve bildirim kaynakli canli akis kayitlari listeleniyor.",
+                  records: feedRecords,
+                  links: [{ href: "/dashboard/tracking", label: "Takip" }]
+                }}
+              >
+                {feedRows.length} kayıt
+              </ManagerQuickAccessChip>
             </div>
             {!feedRows.length ? (
               <div className="empty">Kayıt bulunmuyor.</div>

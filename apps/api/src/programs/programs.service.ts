@@ -16,6 +16,7 @@ import {
 import { PrismaService } from "../prisma/prisma.service";
 import { ProjectsService } from "../projects/projects.service";
 import { NotificationsService } from "../notifications/notifications.service";
+import { ProgramTemplatesService } from "../program-templates/program-templates.service";
 import { StorageService } from "../storage/storage.service";
 import { AddProgramProjectDto } from "./dto/add-program-project.dto";
 import { AssignFieldUsersDto } from "./dto/assign-field-users.dto";
@@ -35,14 +36,15 @@ export class ProgramsService {
     private readonly notificationsService: NotificationsService,
     private readonly storageService: StorageService,
     private readonly idempotencyService: IdempotencyService,
-    private readonly logger: StructuredLoggerService
+    private readonly logger: StructuredLoggerService,
+    private readonly programTemplatesService: ProgramTemplatesService
   ) {}
 
   async createDailyProgram(dto: CreateDailyProgramDto, actor: CurrentUserPayload) {
     this.assertManager(actor);
     const date = toDateOnly(dto.date);
 
-    return this.prisma.dailyProgram.upsert({
+    const program = await this.prisma.dailyProgram.upsert({
       where: { date },
       update: {},
       create: {
@@ -50,6 +52,10 @@ export class ProgramsService {
         createdById: actor.sub
       }
     });
+
+    await this.programTemplatesService.seedDailyProgramForDate(date, actor);
+
+    return program;
   }
 
   async getProgramMonthSummary(query: ProgramMonthQueryDto, actor: CurrentUserPayload) {
@@ -58,6 +64,8 @@ export class ProgramsService {
     const [year, month] = monthValue.split("-").map(Number);
     const start = new Date(Date.UTC(year, month - 1, 1));
     const end = new Date(Date.UTC(year, month, 1));
+
+    await this.programTemplatesService.seedDailyProgramsForMonth(monthValue, actor);
 
     const programs = await this.prisma.dailyProgram.findMany({
       where: {
@@ -115,8 +123,12 @@ export class ProgramsService {
 
   async getProgramByDate(date: string, actor: CurrentUserPayload) {
     this.assertManager(actor);
+    const targetDate = toDateOnly(date);
+
+    await this.programTemplatesService.seedDailyProgramForDate(targetDate, actor);
+
     const program = await this.prisma.dailyProgram.findUnique({
-      where: { date: toDateOnly(date) },
+      where: { date: targetDate },
       include: {
         programProjects: {
           include: {

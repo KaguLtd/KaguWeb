@@ -24,6 +24,36 @@ export class ApiError extends Error {
   }
 }
 
+const SERVICE_UNAVAILABLE_MESSAGE = "Sunucuya gecici olarak ulasilamiyor. Biraz sonra tekrar deneyin.";
+
+function isServiceUnavailableResponse(response: Response, raw: string) {
+  const contentType = response.headers.get("Content-Type")?.toLowerCase() ?? "";
+  const normalized = raw.trim().toLowerCase();
+
+  if (response.status !== 500 && response.status !== 502 && response.status !== 503 && response.status !== 504) {
+    return false;
+  }
+
+  return (
+    contentType.includes("text/html") ||
+    normalized === "internal server error" ||
+    normalized.includes("econnrefused") ||
+    normalized.includes("failed to proxy") ||
+    normalized.includes("proxy error")
+  );
+}
+
+function toNetworkApiError(error: unknown) {
+  const message =
+    error instanceof Error && error.message.trim()
+      ? SERVICE_UNAVAILABLE_MESSAGE
+      : SERVICE_UNAVAILABLE_MESSAGE;
+
+  return new ApiError(message, 503, {
+    cause: error instanceof Error ? error.message : String(error)
+  });
+}
+
 export function registerApiAuthRefresh(handler: RefreshHandler | null) {
   refreshHandler = handler;
 }
@@ -62,7 +92,7 @@ async function requestOnce(path: string, options: ApiRequestInit, token?: string
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  return fetch(`${API_BASE_URL}${path}`, {
+  return fetch(resolveApiUrl(path), {
     ...fetchOptions,
     headers,
     cache: fetchOptions.cache ?? "no-store",
@@ -70,8 +100,28 @@ async function requestOnce(path: string, options: ApiRequestInit, token?: string
   });
 }
 
+function resolveApiUrl(path: string) {
+  if (/^https?:\/\//i.test(path)) {
+    return path;
+  }
+
+  if (path.startsWith("/api/") || path === "/api") {
+    return path;
+  }
+
+  return `${API_BASE_URL}${path}`;
+}
+
 async function parseApiError(response: Response) {
   const raw = await response.text();
+
+  if (isServiceUnavailableResponse(response, raw)) {
+    return new ApiError(SERVICE_UNAVAILABLE_MESSAGE, 503, {
+      status: response.status,
+      body: raw
+    });
+  }
+
   let message = raw || "Istek basarisiz oldu.";
   let details: unknown = null;
 
@@ -95,7 +145,12 @@ export async function apiFetch<T>(
   options: ApiRequestInit = {},
   token?: string | null
 ): Promise<T> {
-  let response = await requestOnce(path, options, token);
+  let response: Response;
+  try {
+    response = await requestOnce(path, options, token);
+  } catch (error) {
+    throw toNetworkApiError(error);
+  }
 
   if (
     response.status === 401 &&
@@ -104,7 +159,11 @@ export async function apiFetch<T>(
   ) {
     const refreshedToken = await runRefreshHandler();
     if (refreshedToken) {
-      response = await requestOnce(path, { ...options, skipAuthRetry: true }, refreshedToken);
+      try {
+        response = await requestOnce(path, { ...options, skipAuthRetry: true }, refreshedToken);
+      } catch (error) {
+        throw toNetworkApiError(error);
+      }
     }
   }
 
@@ -124,11 +183,16 @@ export async function apiFetch<T>(
 }
 
 export function buildApiUrl(path: string) {
-  return `${API_BASE_URL}${path}`;
+  return resolveApiUrl(path);
 }
 
 export async function fetchAuthorizedBlob(path: string, token: string) {
-  let response = await requestOnce(path, { method: "GET" }, token);
+  let response: Response;
+  try {
+    response = await requestOnce(path, { method: "GET" }, token);
+  } catch (error) {
+    throw toNetworkApiError(error);
+  }
 
   if (
     response.status === 401 &&
@@ -137,7 +201,11 @@ export async function fetchAuthorizedBlob(path: string, token: string) {
   ) {
     const refreshedToken = await runRefreshHandler();
     if (refreshedToken) {
-      response = await requestOnce(path, { method: "GET", skipAuthRetry: true }, refreshedToken);
+      try {
+        response = await requestOnce(path, { method: "GET", skipAuthRetry: true }, refreshedToken);
+      } catch (error) {
+        throw toNetworkApiError(error);
+      }
     }
   }
 
@@ -145,7 +213,7 @@ export async function fetchAuthorizedBlob(path: string, token: string) {
     if (response.status === 401 && typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent(AUTH_UNAUTHORIZED_EVENT));
     }
-    throw new Error("Dosya alinamadi.");
+    throw await parseApiError(response);
   }
 
   const blob = await response.blob();

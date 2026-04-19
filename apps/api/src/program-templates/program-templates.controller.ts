@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
 import { Role } from "@prisma/client";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import type { CurrentUserPayload } from "../common/decorators/current-user.decorator";
@@ -38,6 +38,11 @@ export class ProgramTemplatesController {
     @CurrentUser() user: CurrentUserPayload
   ) {
     return this.programTemplatesService.update(id, dto, user);
+  }
+
+  @Delete(":id")
+  remove(@Param("id") id: string, @CurrentUser() user: CurrentUserPayload) {
+    return this.programTemplatesService.remove(id, user);
   }
 
   @Post(":id/activate")

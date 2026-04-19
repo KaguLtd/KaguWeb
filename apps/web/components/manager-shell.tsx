@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { dashboardFeatureFlags } from "../lib/feature-flags";
 import { useAuth } from "./auth-provider";
 import {
   CalendarIcon,
@@ -16,19 +17,36 @@ import {
   UsersIcon
 } from "./ui-icons";
 
-const navigation = [
-  { href: "/dashboard", label: "Genel Bakış" },
+type NavigationHref =
+  | "/dashboard"
+  | "/dashboard/projects"
+  | "/dashboard/users"
+  | "/dashboard/program"
+  | "/dashboard/templates"
+  | "/dashboard/forms"
+  | "/dashboard/form-responses"
+  | "/dashboard/jobs"
+  | "/dashboard/tracking";
+
+type NavigationItem = {
+  href: NavigationHref;
+  label: string;
+  feature?: keyof typeof dashboardFeatureFlags;
+};
+
+const navigation: readonly NavigationItem[] = [
+  { href: "/dashboard", label: "Genel Bakis" },
   { href: "/dashboard/projects", label: "Projeler" },
-  { href: "/dashboard/users", label: "Kullanıcılar" },
-  { href: "/dashboard/program", label: "Günlük Program" },
-  { href: "/dashboard/templates", label: "Tekrarlı İşler" },
-  { href: "/dashboard/forms", label: "Saha Formları" },
-  { href: "/dashboard/form-responses", label: "Form Yanıtları" },
-  { href: "/dashboard/jobs", label: "İş Geçmişi" },
+  { href: "/dashboard/users", label: "Kullanicilar" },
+  { href: "/dashboard/program", label: "Gunluk Program" },
+  { href: "/dashboard/templates", label: "Tekrarli Isler" },
+  { href: "/dashboard/forms", label: "Saha Formlari", feature: "fieldForms" },
+  { href: "/dashboard/form-responses", label: "Form Yanitlari", feature: "fieldForms" },
+  { href: "/dashboard/jobs", label: "Is Gecmisi" },
   { href: "/dashboard/tracking", label: "Takip" }
 ] as const;
 
-const iconByHref = {
+const iconByHref: Record<NavigationHref, typeof DashboardIcon> = {
   "/dashboard": DashboardIcon,
   "/dashboard/projects": FolderIcon,
   "/dashboard/users": UsersIcon,
@@ -38,18 +56,18 @@ const iconByHref = {
   "/dashboard/form-responses": FileIcon,
   "/dashboard/jobs": TimelineIcon,
   "/dashboard/tracking": MapIcon
-} as const;
+};
 
 const routeCopy = {
   dashboard: { kicker: "Operasyon merkezi" },
-  projects: { kicker: "Kayıt yönetimi" },
+  projects: { kicker: "Kayit yonetimi" },
   users: { kicker: "Ekip dizini" },
-  program: { kicker: "Gün planı" },
-  templates: { kicker: "Tekrarlı planlar" },
-  forms: { kicker: "Yapılandırılmış formlar" },
-  "form-responses": { kicker: "Saha yanıtları" },
-  jobs: { kicker: "Arka plan işleri" },
-  tracking: { kicker: "Canlı takip" }
+  program: { kicker: "Gun plani" },
+  templates: { kicker: "Tekrarli planlar" },
+  forms: { kicker: "Yapilandirilmis formlar" },
+  "form-responses": { kicker: "Saha yanitlari" },
+  jobs: { kicker: "Arka plan isleri" },
+  tracking: { kicker: "Canli takip" }
 } as const;
 
 type ManagerShellProps = {
@@ -60,7 +78,7 @@ type ManagerShellProps = {
   contextItems?: string[];
 };
 
-function isActivePath(pathname: string, href: (typeof navigation)[number]["href"]) {
+function isActivePath(pathname: string, href: NavigationHref) {
   return pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
 }
 
@@ -88,6 +106,9 @@ export function ManagerShell({
   const router = useRouter();
   const { logout, ready, token, user } = useAuth();
   const scrollKey = `kagu.manager.scroll:${pathname}`;
+  const visibleNavigation = navigation.filter(
+    (item) => !item.feature || dashboardFeatureFlags[item.feature]
+  );
 
   useEffect(() => {
     document.body.style.overflow = "";
@@ -133,8 +154,8 @@ export function ManagerShell({
       <div className="login-shell">
         <div className="panel glass shell-loading-card">
           <div className="shell-loading-copy">
-            <strong>Çalışma alanı hazırlanıyor</strong>
-            <span>Oturum bağlamı yükleniyor.</span>
+            <strong>Calisma alani hazirlaniyor</strong>
+            <span>Oturum baglami yukleniyor.</span>
           </div>
         </div>
       </div>
@@ -151,8 +172,8 @@ export function ManagerShell({
     .join("");
 
   const defaultContextItems = [
-    `${navigation.find((item) => isActivePath(pathname, item.href))?.label ?? title}`,
-    "Yönetim oturumu"
+    `${visibleNavigation.find((item) => isActivePath(pathname, item.href))?.label ?? title}`,
+    "Yonetim oturumu"
   ];
 
   const resolvedContextItems = contextItems?.length ? contextItems : defaultContextItems;
@@ -161,7 +182,7 @@ export function ManagerShell({
     <div className="app-shell manager-shell-v3" data-manager-theme={theme}>
       <div className="manager-shell-aura" aria-hidden="true" />
       <div className="manager-workbench">
-        <aside className="manager-rail manager-rail-wide" aria-label="Yönetici gezinme">
+        <aside className="manager-rail manager-rail-wide" aria-label="Yonetici gezinme">
           <div className="manager-rail-brand">
             <div className="manager-rail-mark manager-rail-mark-logo">
               <Image alt="Kagu" height={32} priority src="/icon.svg" width={32} />
@@ -173,7 +194,7 @@ export function ManagerShell({
           </div>
 
           <nav className="manager-rail-nav">
-            {navigation.map((item) => {
+            {visibleNavigation.map((item) => {
               const active = isActivePath(pathname, item.href);
               const Icon = iconByHref[item.href];
 
@@ -190,7 +211,7 @@ export function ManagerShell({
                   </span>
                   <span className="manager-rail-copy">
                     <strong>{item.label}</strong>
-                    <small>{active ? "Seçili ekran" : "Çalışma alanı"}</small>
+                    <small>{active ? "Secili ekran" : "Calisma alani"}</small>
                   </span>
                 </Link>
               );
@@ -216,7 +237,7 @@ export function ManagerShell({
               </span>
               <span className="manager-rail-copy">
                 <strong>Oturumu Kapat</strong>
-                <small>Bu cihazdan çıkış yap</small>
+                <small>Bu cihazdan cikis yap</small>
               </span>
             </button>
           </div>
@@ -231,7 +252,7 @@ export function ManagerShell({
                 </div>
                 <div className="manager-topbar-brandcopy">
                   <strong>Kagu Ltd.</strong>
-                  <span>Yönetim çalışma alanı</span>
+                  <span>Yonetim calisma alani</span>
                 </div>
               </div>
               <div className="manager-page-heading">
@@ -258,7 +279,7 @@ export function ManagerShell({
 
               <button className="button ghost manager-mobile-logout" onClick={logout} type="button">
                 <LogoutIcon />
-                <span>Çıkış</span>
+                <span>Cikis</span>
               </button>
             </div>
           </header>
@@ -267,8 +288,8 @@ export function ManagerShell({
         </div>
       </div>
 
-      <nav className="manager-mobile-nav" aria-label="Yönetici mobil gezinme">
-        {navigation.map((item) => {
+      <nav className="manager-mobile-nav" aria-label="Yonetici mobil gezinme">
+        {visibleNavigation.map((item) => {
           const active = isActivePath(pathname, item.href);
           const Icon = iconByHref[item.href];
 

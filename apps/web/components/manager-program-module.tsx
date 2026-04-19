@@ -16,6 +16,7 @@ import {
 } from "../lib/date";
 import { AlertMessage } from "./alert-message";
 import { useAuth } from "./auth-provider";
+import { ManagerQuickAccessChip } from "./manager-quick-access";
 import { ManagerDrawer, ManagerDrawerSection } from "./manager-ui";
 import { CalendarIcon, FileIcon, TimelineIcon, UsersIcon } from "./ui-icons";
 import { useSyncedDashboardDate } from "./use-synced-dashboard-date";
@@ -24,6 +25,25 @@ const DATE_WINDOW_RADIUS = 45;
 
 function formatDateLabel(value: string) {
   return formatDisplayDate(value);
+}
+
+function buildProgramEntryRecord(
+  entry: NonNullable<DailyProgramDetail["programProjects"][number]["dayEntries"]>[number]
+) {
+  return {
+    id: entry.id,
+    title: entry.actor.displayName,
+    subtitle: formatDisplayDate(entry.createdAt),
+    description: entry.note?.trim() || "Bu kayit not icermiyor.",
+    meta: [`${entry.files.length} dosya`],
+    files: entry.files.map((file) => ({
+      id: file.id,
+      name: file.originalName,
+      extension: file.extension,
+      downloadPath: file.downloadUrl,
+      previewPath: file.inlineUrl ?? undefined
+    }))
+  };
 }
 
 export function ManagerProgramModule() {
@@ -428,6 +448,40 @@ export function ManagerProgramModule() {
   }
 
   const selectedProjectSummary = projects.find((project) => project.id === selectedProjectId) ?? null;
+  const selectedAssignmentRecords = useMemo(
+    () =>
+      selectedProgramProject?.assignments.map((assignment) => ({
+        id: assignment.id,
+        title: assignment.user.displayName,
+        subtitle: `@${assignment.user.username}`,
+        description: assignment.user.isActive ? "Aktif saha kullanicisi" : "Pasif kullanici"
+      })) ?? [],
+    [selectedProgramProject]
+  );
+  const selectedEntryRecords = useMemo(
+    () => selectedProgramProject?.dayEntries?.map(buildProgramEntryRecord) ?? [],
+    [selectedProgramProject]
+  );
+  const selectedFileRecords = useMemo(
+    () =>
+      selectedProgramProject?.dayEntries
+        ?.flatMap((entry) => entry.files.map((file) => ({
+          id: file.id,
+          title: file.originalName,
+          subtitle: entry.actor.displayName,
+          description: entry.note?.trim() || "Gunluk program dosyasi",
+          files: [
+            {
+              id: file.id,
+              name: file.originalName,
+              extension: file.extension,
+              downloadPath: file.downloadUrl,
+              previewPath: file.inlineUrl ?? undefined
+            }
+          ]
+        }))) ?? [],
+    [selectedProgramProject]
+  );
   const programSignalCards = [
     {
       label: "Program proje",
@@ -539,8 +593,33 @@ export function ManagerProgramModule() {
                       </span>
                     </div>
                     <div className="program-day-summary-meta">
-                      <span>{item.assignments.length} ekip</span>
-                      <span>{item.dayEntries?.length ?? 0} not</span>
+                      <ManagerQuickAccessChip
+                        ariaLabel={`${item.project.name} ekip detaylarini ac`}
+                        payload={{
+                          title: `${item.project.name} ekipleri`,
+                          summary: "Secili gun icin projeye atanan saha personeli listeleniyor.",
+                          records: item.assignments.map((assignment) => ({
+                            id: assignment.id,
+                            title: assignment.user.displayName,
+                            subtitle: `@${assignment.user.username}`,
+                            description: assignment.user.isActive ? "Aktif kullanici" : "Pasif kullanici"
+                          })),
+                          links: [{ href: "/dashboard/program", label: "Gunluk Program" }]
+                        }}
+                      >
+                        {item.assignments.length} ekip
+                      </ManagerQuickAccessChip>
+                      <ManagerQuickAccessChip
+                        ariaLabel={`${item.project.name} gunluk notlarini ac`}
+                        payload={{
+                          title: `${item.project.name} gunluk kayitlari`,
+                          summary: "Secili gun icin not ve dosya kayitlari listeleniyor.",
+                          records: (item.dayEntries ?? []).map(buildProgramEntryRecord),
+                          links: [{ href: "/dashboard/program", label: "Gunluk Program" }]
+                        }}
+                      >
+                        {item.dayEntries?.length ?? 0} not
+                      </ManagerQuickAccessChip>
                     </div>
                   </div>
                 ))}
@@ -574,12 +653,42 @@ export function ManagerProgramModule() {
           </article>
           <article className="manager-stat-card">
             <span>Program proje</span>
-            <strong>{loading ? "..." : program?.programProjects.length ?? 0}</strong>
+            <strong>
+              <ManagerQuickAccessChip
+                ariaLabel="Program projelerini ac"
+                payload={{
+                  title: "Gunluk program projeleri",
+                  summary: "Secili gune yazili proje kayitlari listeleniyor.",
+                  records: (program?.programProjects ?? []).map((item) => ({
+                    id: item.id,
+                    title: item.project.name,
+                    subtitle: item.project.customer?.name ?? item.project.locationLabel ?? "",
+                    description: `${item.assignments.length} ekip / ${item.dayEntries?.length ?? 0} kayit`,
+                    meta: [`${item.assignments.length} ekip`, `${item.dayEntries?.length ?? 0} kayit`]
+                  })),
+                  links: [{ href: "/dashboard/program", label: "Gunluk Program" }]
+                }}
+              >
+                {loading ? "..." : program?.programProjects.length ?? 0}
+              </ManagerQuickAccessChip>
+            </strong>
             <small>Secili gunde acik kayit</small>
           </article>
           <article className="manager-stat-card">
             <span>Secili ekip</span>
-            <strong>{selectedProgramProject ? assignmentDraft.length : 0}</strong>
+            <strong>
+              <ManagerQuickAccessChip
+                ariaLabel="Secili ekip detaylarini ac"
+                payload={{
+                  title: "Secili ekip",
+                  summary: "Drawer baglaminda secilen saha personeli listeleniyor.",
+                  records: selectedAssignmentRecords,
+                  links: [{ href: "/dashboard/program", label: "Gunluk Program" }]
+                }}
+              >
+                {selectedProgramProject ? assignmentDraft.length : 0}
+              </ManagerQuickAccessChip>
+            </strong>
             <small>Drawer icinde secili personel</small>
           </article>
           <article className="manager-stat-card">
@@ -602,9 +711,26 @@ export function ManagerProgramModule() {
               <button className="button ghost" onClick={() => scrollTimeline(1)} type="button">
                 Saga kaydir
               </button>
-              <span className="manager-mini-chip">
+              <ManagerQuickAccessChip
+                ariaLabel="Takvim gunlerini ac"
+                payload={{
+                  title: "Takvim gunleri",
+                  summary: "Kaydirilabilir tarih seridindeki gunler listeleniyor.",
+                  records: windowDays.map((day) => {
+                    const summary = dayLookup.get(day);
+                    return {
+                      id: day,
+                      title: formatDateLabel(day),
+                      subtitle: day,
+                      description: `${summary?.projectCount ?? 0} proje / ${summary?.userCount ?? 0} ekip`,
+                      meta: summary?.projectNames?.slice(0, 3) ?? []
+                    };
+                  }),
+                  links: [{ href: "/dashboard/program", label: "Gunluk Program" }]
+                }}
+              >
                 {loading ? "Yukleniyor..." : `${windowDays.length} gun`}
-              </span>
+              </ManagerQuickAccessChip>
             </div>
           </div>
 
@@ -789,7 +915,19 @@ export function ManagerProgramModule() {
                 eyebrow="Adim 2"
                 title="Ekip atama"
                 description="Saha personeli secimleri yalnizca Kaydet ve Kapat sonrasinda sunucuya yazilir."
-                meta={<span className="manager-mini-chip">{assignmentDraft.length} secili</span>}
+                meta={
+                  <ManagerQuickAccessChip
+                    ariaLabel="Secili saha personelini ac"
+                    payload={{
+                      title: "Secili saha personeli",
+                      summary: "Bu proje icin secili personel listeleniyor.",
+                      records: selectedAssignmentRecords,
+                      links: [{ href: "/dashboard/program", label: "Gunluk Program" }]
+                    }}
+                  >
+                    {assignmentDraft.length} secili
+                  </ManagerQuickAccessChip>
+                }
               >
                 <div className="program-selected-assignees">
                   {selectedAssignmentUsers.length ? (
@@ -836,7 +974,19 @@ export function ManagerProgramModule() {
                 eyebrow="Adim 3"
                 title="Notlar ve ekler"
                 description="Yeni not veya dosya ekleri bu panelde bekler ve kaydetme aninda islenir."
-                meta={<span className="manager-mini-chip">{selectedProgramProject.dayEntries?.length ?? 0}</span>}
+                meta={
+                  <ManagerQuickAccessChip
+                    ariaLabel="Gunluk kayitlari ac"
+                    payload={{
+                      title: "Gunluk kayitlar",
+                      summary: "Secili proje icin olusan not ve dosya kayitlari listeleniyor.",
+                      records: selectedEntryRecords,
+                      links: [{ href: "/dashboard/program", label: "Gunluk Program" }]
+                    }}
+                  >
+                    {selectedProgramProject.dayEntries?.length ?? 0}
+                  </ManagerQuickAccessChip>
+                }
               >
                 {!selectedProgramProject.dayEntries?.length ? (
                   <div className="empty">Secili proje icin kayit yok.</div>
@@ -857,7 +1007,33 @@ export function ManagerProgramModule() {
                             <td>{formatDisplayDate(entry.createdAt)}</td>
                             <td>{entry.actor.displayName}</td>
                             <td>{entry.note?.trim() || "-"}</td>
-                            <td>{entry.files.length}</td>
+                            <td>
+                              <ManagerQuickAccessChip
+                                ariaLabel={`${entry.actor.displayName} dosyalarini ac`}
+                                payload={{
+                                  title: `${entry.actor.displayName} dosyalari`,
+                                  summary: "Secili kayda bagli dosyalar listeleniyor.",
+                                  records: entry.files.map((file) => ({
+                                    id: file.id,
+                                    title: file.originalName,
+                                    subtitle: entry.actor.displayName,
+                                    description: entry.note?.trim() || "Gunluk program dosyasi",
+                                    files: [
+                                      {
+                                        id: file.id,
+                                        name: file.originalName,
+                                        extension: file.extension,
+                                        downloadPath: file.downloadUrl,
+                                        previewPath: file.inlineUrl ?? undefined
+                                      }
+                                    ]
+                                  })),
+                                  links: [{ href: "/dashboard/program", label: "Gunluk Program" }]
+                                }}
+                              >
+                                {entry.files.length}
+                              </ManagerQuickAccessChip>
+                            </td>
                           </tr>
                         ))}
                       </tbody>

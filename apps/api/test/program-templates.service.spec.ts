@@ -22,7 +22,8 @@ describe("ProgramTemplatesService", () => {
         findMany: jest.fn(),
         create: jest.fn(),
         findUnique: jest.fn(),
-        update: jest.fn()
+        update: jest.fn(),
+        delete: jest.fn()
       },
       programTemplateRecurrenceRule: {
         deleteMany: jest.fn(),
@@ -33,6 +34,7 @@ describe("ProgramTemplatesService", () => {
         create: jest.fn()
       },
       dailyProgram: {
+        findMany: jest.fn(),
         findUnique: jest.fn(),
         upsert: jest.fn()
       },
@@ -709,6 +711,43 @@ describe("ProgramTemplatesService", () => {
           ]
         }
       ]
+    });
+  });
+
+  it("deletes templates and records an audit event", async () => {
+    const prisma = createPrismaMock();
+    const storageService = createStorageServiceMock();
+
+    prisma.programTemplate.findUnique.mockResolvedValue({
+      id: "template-1",
+      name: "Haftalik servis"
+    });
+
+    const service = new ProgramTemplatesService(
+      prisma as never,
+      storageService as never,
+      createJobsServiceMock() as never,
+      createLoggerMock() as never
+    );
+
+    const result = await service.remove("template-1", managerActor as never);
+
+    expect(prisma.programTemplate.delete).toHaveBeenCalledWith({
+      where: {
+        id: "template-1"
+      }
+    });
+    expect(storageService.appendSystemEvent).toHaveBeenCalledWith({
+      actor: managerActor,
+      eventType: "PROGRAM_TEMPLATE_DELETED",
+      payload: {
+        templateId: "template-1",
+        name: "Haftalik servis"
+      }
+    });
+    expect(result).toEqual({
+      success: true,
+      id: "template-1"
     });
   });
 

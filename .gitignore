@@ -8,5 +8,7 @@ coverage/
 .env.local
 .npm-cache/
 apps/api/prisma/dev.db
-storage/
+/storage/
+/apps/api/storage/
+/apps/api/runtime/storage/
 *.log

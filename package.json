@@ -18,5 +18,11 @@
     "db:init": "prisma migrate deploy --schema apps/api/prisma/schema.prisma",
     "db:bootstrap-admin": "ts-node --project apps/api/tsconfig.json apps/api/prisma/bootstrap-admin.ts",
     "db:seed-demo": "prisma db seed --schema apps/api/prisma/schema.prisma"
+  },
+  "devDependencies": {
+    "@types/babel__traverse": "^7.28.0",
+    "@types/react": "^19.2.14",
+    "jiti": "^2.4.2",
+    "typescript": "^5.9.3"
   }
 }

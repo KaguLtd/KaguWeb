@@ -26,10 +26,10 @@
   --shadow-sm: 0 8px 22px rgba(23, 33, 43, 0.08);
   --shadow-md: 0 18px 46px rgba(23, 33, 43, 0.12);
   --shadow-lg: 0 28px 72px rgba(23, 33, 43, 0.18);
-  --radius-sm: 12px;
-  --radius-md: 18px;
-  --radius-lg: 26px;
-  --radius-xl: 34px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
 }
 
 * {
@@ -178,7 +178,7 @@ textarea:disabled {
   min-height: 40px;
   padding: 10px 12px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 4px;
   background: var(--surface-strong);
   color: var(--text);
   line-height: 1.35;
@@ -220,7 +220,7 @@ textarea:disabled {
   gap: 7px;
   padding: 8px 13px;
   border: 1px solid transparent;
-  border-radius: 12px;
+  border-radius: 4px;
   background: linear-gradient(180deg, var(--accent), #cb7b3b);
   color: #fff9f1;
   font-weight: 700;
@@ -290,7 +290,7 @@ textarea:disabled {
 .alert {
   padding: 12px 14px;
   border: 1px solid rgba(70, 111, 132, 0.18);
-  border-radius: 14px;
+  border-radius: 5px;
   background: var(--info-soft);
   color: #305366;
 }
@@ -316,7 +316,7 @@ textarea:disabled {
 .empty {
   padding: 14px;
   border: 1px dashed var(--line-strong);
-  border-radius: 14px;
+  border-radius: 5px;
   background: rgba(255, 255, 255, 0.55);
   color: var(--text-muted);
 }
@@ -333,7 +333,7 @@ textarea:disabled {
   gap: 12px;
   padding: 10px 12px;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: 5px;
   background: var(--surface-soft);
 }
 
@@ -433,7 +433,7 @@ textarea:disabled {
   height: 48px;
   display: grid;
   place-items: center;
-  border-radius: 16px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.16);
   font-size: 1.18rem;
@@ -451,7 +451,7 @@ textarea:disabled {
   display: grid;
   gap: 6px;
   padding: 14px;
-  border-radius: 16px;
+  border-radius: 6px;
   font-size: 0.82rem;
 }
 
@@ -461,7 +461,7 @@ textarea:disabled {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 10px;
+  border-radius: 4px;
   background: rgba(255, 255, 255, 0.12);
 }
 
@@ -483,7 +483,7 @@ textarea:disabled {
   align-items: flex-start;
   padding: 12px 14px;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: 5px;
   background: var(--surface-soft);
 }
 

@@ -15,6 +15,7 @@ describe("ProgramTemplatesController contract", () => {
     getOne: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
+    remove: jest.fn(),
     setActive: jest.fn(),
     previewMaterialization: jest.fn(),
     materialize: jest.fn()
@@ -269,6 +270,28 @@ describe("ProgramTemplatesController contract", () => {
         role: "MANAGER"
       }
     );
+  });
+
+  it("DELETE /api/program-templates/:id removes manager templates", async () => {
+    programTemplatesService.remove.mockResolvedValue({
+      success: true,
+      id: "template-1"
+    });
+
+    const response = await request(app.getHttpServer())
+      .delete("/api/program-templates/template-1")
+      .expect(200);
+
+    expect(response.body).toEqual({
+      success: true,
+      id: "template-1"
+    });
+    expect(programTemplatesService.remove).toHaveBeenCalledWith("template-1", {
+      sub: "manager-1",
+      username: "yonetici",
+      displayName: "Ana Yonetici",
+      role: "MANAGER"
+    });
   });
 
   it("POST /api/program-templates/:id/materialize forwards selected date", async () => {

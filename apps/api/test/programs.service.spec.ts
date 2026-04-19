@@ -35,6 +35,65 @@ describe("ProgramsService", () => {
     };
   }
 
+  function createProgramTemplatesServiceMock() {
+    return {
+      seedDailyProgramForDate: jest.fn().mockResolvedValue(undefined),
+      seedDailyProgramsForMonth: jest.fn().mockResolvedValue(undefined)
+    };
+  }
+
+  it("seeds recurring templates before reading month summaries", async () => {
+    const prisma = {
+      dailyProgram: {
+        findMany: jest.fn().mockResolvedValue([])
+      }
+    };
+    const programTemplatesService = createProgramTemplatesServiceMock();
+
+    const service = new ProgramsService(
+      prisma as never,
+      {} as never,
+      { sendAssignmentNotice: jest.fn() } as never,
+      createStorageServiceMock() as never,
+      createIdempotencyServiceMock() as never,
+      createLoggerMock() as never,
+      programTemplatesService as never
+    );
+
+    await service.getProgramMonthSummary({ month: "2026-03" }, actor as never);
+
+    expect(programTemplatesService.seedDailyProgramsForMonth).toHaveBeenCalledWith(
+      "2026-03",
+      actor
+    );
+  });
+
+  it("seeds recurring templates before reading a day detail", async () => {
+    const prisma = {
+      dailyProgram: {
+        findUnique: jest.fn().mockResolvedValue(null)
+      }
+    };
+    const programTemplatesService = createProgramTemplatesServiceMock();
+
+    const service = new ProgramsService(
+      prisma as never,
+      {} as never,
+      { sendAssignmentNotice: jest.fn() } as never,
+      createStorageServiceMock() as never,
+      createIdempotencyServiceMock() as never,
+      createLoggerMock() as never,
+      programTemplatesService as never
+    );
+
+    await service.getProgramByDate("2026-03-29", actor as never);
+
+    expect(programTemplatesService.seedDailyProgramForDate).toHaveBeenCalledWith(
+      new Date("2026-03-29T00:00:00.000Z"),
+      actor
+    );
+  });
+
   it("cleans staged timeline files when entry creation fails after staging", async () => {
     const stagedFiles = [
       {
@@ -86,7 +145,8 @@ describe("ProgramsService", () => {
       notificationsService as never,
       storageService as never,
       idempotencyService as never,
-      logger as never
+      logger as never,
+      createProgramTemplatesServiceMock() as never
     );
 
     await expect(
@@ -153,7 +213,8 @@ describe("ProgramsService", () => {
       notificationsService as never,
       storageService as never,
       idempotencyService as never,
-      logger as never
+      logger as never,
+      createProgramTemplatesServiceMock() as never
     );
 
     await service.addProjectToProgram(
@@ -210,7 +271,8 @@ describe("ProgramsService", () => {
       notificationsService as never,
       storageService as never,
       idempotencyService as never,
-      logger as never
+      logger as never,
+      createProgramTemplatesServiceMock() as never
     );
 
     await service.updateProgramNote(

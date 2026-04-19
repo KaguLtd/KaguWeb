@@ -15,8 +15,10 @@ import {
   getTodayLocal,
   shiftDateString
 } from "../lib/date";
+import { dashboardFeatureFlags } from "../lib/feature-flags";
 import { AlertMessage } from "./alert-message";
 import { useAuth } from "./auth-provider";
+import { ManagerQuickAccessChip } from "./manager-quick-access";
 import {
   CalendarIcon,
   CheckCircleIcon,
@@ -98,6 +100,16 @@ function formatRouteMode(routeMode: string) {
 
 function formatCampaignType(type: string) {
   return type === "DAILY_REMINDER" ? "Gunluk hatirlatici" : "Manuel bildirim";
+}
+
+function buildActivityRecord(activity: ManagerDashboardActivity) {
+  return {
+    id: activity.id,
+    title: activity.projectName,
+    subtitle: `${activity.actor.displayName} / ${activityTypeLabel(activity)}`,
+    description: activity.note?.trim() || "Bu kayit not icermiyor.",
+    meta: [formatDisplayDateTime(activity.createdAt), `${activity.fileCount} dosya`]
+  };
 }
 
 export function ManagerOverviewModule() {
@@ -233,16 +245,18 @@ export function ManagerOverviewModule() {
         ? `${formatRouteMode(routingSummary.routeMode)} ile ${routingSummary.skippedProjectCount} eksik konum`
         : "Rota ozeti yukleniyor",
       icon: LocationArrowIcon
-    },
-    {
+    }
+  ];
+  if (dashboardFeatureFlags.fieldForms) {
+    spotlightCards.push({
       label: "Form akisi",
       value: `${fieldFormSummary?.totalCount ?? 0}`,
       detail: fieldFormSummary
         ? `${fieldFormSummary.uniqueTemplateCount} template ve ${fieldFormSummary.uniqueProjectCount} proje`
         : "Form sinyali bekleniyor",
       icon: FileIcon
-    }
-  ];
+    });
+  }
   const quickStatusItems = [
     {
       label: "Jobs",
@@ -302,7 +316,7 @@ export function ManagerOverviewModule() {
             <span className="manager-command-kicker">Secili gun</span>
             <h2 className="manager-block-title">Operasyon ritmini tek bakista yonetin</h2>
             <p className="manager-block-copy manager-block-copy-visible">
-              Saha ekipleri, rota disiplini, form akisi ve export operasyonlari ayni ana yuzeyde.
+              Saha ekipleri, rota disiplini ve export operasyonlari ayni ana yuzeyde.
             </p>
           </div>
           <div className="manager-overview-highlights">
@@ -463,9 +477,23 @@ export function ManagerOverviewModule() {
               <span className="manager-section-kicker">Canli ekipler</span>
               <h3 className="manager-section-title">Aktif saha oturumlari</h3>
             </div>
-            <span className="manager-mini-chip">
+            <ManagerQuickAccessChip
+              ariaLabel="Aktif saha oturumlarini ac"
+              payload={{
+                title: "Aktif saha oturumlari",
+                summary: "Secili gunde aktif saha oturumlari listeleniyor.",
+                records: activeSessions.map((session) => ({
+                  id: session.assignmentId,
+                  title: session.user.displayName,
+                  subtitle: session.project.name,
+                  description: session.project.customerName ?? "Cari bilgisi yok",
+                  meta: [formatDisplayDateTime(session.startedAt)]
+                })),
+                links: [{ href: "/dashboard/tracking", label: "Takip" }]
+              }}
+            >
               {loading ? "Yukleniyor..." : `${activeSessions.length} aktif`}
-            </span>
+            </ManagerQuickAccessChip>
           </div>
 
           {!overview && loading ? (
@@ -504,7 +532,29 @@ export function ManagerOverviewModule() {
               <span className="manager-section-kicker">Program nabzi</span>
               <h3 className="manager-section-title">Bugun oncelikli projeler</h3>
             </div>
-            <span className="manager-mini-chip">{programProjects.length} proje</span>
+            <ManagerQuickAccessChip
+              ariaLabel="Bugunun oncelikli projelerini ac"
+              payload={{
+                title: "Bugunun oncelikli projeleri",
+                summary: "Secili gun icin program yuzeyine dusen projeler listeleniyor.",
+                records: programProjects.map((project) => ({
+                  id: project.id,
+                  title: project.projectName,
+                  subtitle: project.customerName ?? project.locationLabel ?? "",
+                  description: project.latestActivityAt
+                    ? `Son hareket ${formatDisplayDateTime(project.latestActivityAt)}`
+                    : "Hareket yok",
+                  meta: [
+                    `${project.assignmentCount} ekip`,
+                    `${project.noteCount} not`,
+                    `${project.fileCount} dosya`
+                  ]
+                })),
+                links: [{ href: "/dashboard/program", label: "Gunluk Program" }]
+              }}
+            >
+              {programProjects.length} proje
+            </ManagerQuickAccessChip>
           </div>
 
           {!overview && loading ? (
@@ -548,9 +598,64 @@ export function ManagerOverviewModule() {
               <Link className="button ghost" href="/dashboard/jobs" scroll={false}>
                 Tum Isler
               </Link>
-              <span className="manager-mini-chip">{jobSummary?.totalCount ?? 0} kayit</span>
-              <span className="manager-mini-chip">{jobSummary?.runningCount ?? 0} calisiyor</span>
-              <span className="manager-mini-chip">{jobSummary?.failedCount ?? 0} hata</span>
+              <ManagerQuickAccessChip
+                ariaLabel="Job kayitlarini ac"
+                payload={{
+                  title: "Job kayitlari",
+                  summary: "Son execution kayitlari listeleniyor.",
+                  records:
+                    jobSummary?.recentExecutions.map((execution) => ({
+                      id: execution.id,
+                      title: execution.jobName,
+                      subtitle: execution.actor?.displayName ?? "Sistem",
+                      description: execution.status,
+                      meta: [execution.triggerSource, formatDisplayDateTime(execution.startedAt)]
+                    })) ?? [],
+                  links: [{ href: "/dashboard/jobs", label: "Tum Isler" }]
+                }}
+              >
+                {jobSummary?.totalCount ?? 0} kayit
+              </ManagerQuickAccessChip>
+              <ManagerQuickAccessChip
+                ariaLabel="Calisan joblari ac"
+                payload={{
+                  title: "Calisan joblar",
+                  summary: "Halen calisan execution kayitlari listeleniyor.",
+                  records:
+                    jobSummary?.recentExecutions
+                      .filter((execution) => execution.status === "RUNNING")
+                      .map((execution) => ({
+                        id: execution.id,
+                        title: execution.jobName,
+                        subtitle: execution.actor?.displayName ?? "Sistem",
+                        description: execution.triggerSource,
+                        meta: [formatDisplayDateTime(execution.startedAt)]
+                      })) ?? [],
+                  links: [{ href: "/dashboard/jobs", label: "Tum Isler" }]
+                }}
+              >
+                {jobSummary?.runningCount ?? 0} calisiyor
+              </ManagerQuickAccessChip>
+              <ManagerQuickAccessChip
+                ariaLabel="Hatali joblari ac"
+                payload={{
+                  title: "Hatali joblar",
+                  summary: "Hata ile biten execution kayitlari listeleniyor.",
+                  records:
+                    jobSummary?.recentExecutions
+                      .filter((execution) => execution.status === "FAILED")
+                      .map((execution) => ({
+                        id: execution.id,
+                        title: execution.jobName,
+                        subtitle: execution.actor?.displayName ?? "Sistem",
+                        description: execution.status,
+                        meta: [formatDisplayDateTime(execution.startedAt)]
+                      })) ?? [],
+                  links: [{ href: "/dashboard/jobs", label: "Tum Isler" }]
+                }}
+              >
+                {jobSummary?.failedCount ?? 0} hata
+              </ManagerQuickAccessChip>
             </div>
           </div>
 
@@ -652,7 +757,17 @@ export function ManagerOverviewModule() {
               <span className="manager-section-kicker">Son hareketler</span>
               <h3 className="manager-section-title">Gundeki operasyon akisi</h3>
             </div>
-            <span className="manager-mini-chip">{activities.length} kayit</span>
+            <ManagerQuickAccessChip
+              ariaLabel="Operasyon hareketlerini ac"
+              payload={{
+                title: "Operasyon hareketleri",
+                summary: "Secili gune ait son operasyon hareketleri listeleniyor.",
+                records: activities.map(buildActivityRecord),
+                links: [{ href: "/dashboard/projects", label: "Projeler" }]
+              }}
+            >
+              {activities.length} kayit
+            </ManagerQuickAccessChip>
           </div>
 
           {!overview && loading ? (
@@ -676,7 +791,17 @@ export function ManagerOverviewModule() {
                     {activity.note?.trim() || "Bu kayit not icermez, operasyon hareketi olarak kaydedildi."}
                   </p>
                   <div className="manager-feed-inline">
-                    <span className="manager-mini-chip">{activity.fileCount} dosya</span>
+                    <ManagerQuickAccessChip
+                      ariaLabel={`${activity.projectName} dosya kaydini ac`}
+                      payload={{
+                        title: `${activity.projectName} dosya kaydi`,
+                        summary: "Bu hareketin dosya yogunlugu ve baglami listeleniyor.",
+                        records: [buildActivityRecord(activity)],
+                        links: [{ href: "/dashboard/projects", label: "Projeler" }]
+                      }}
+                    >
+                      {activity.fileCount} dosya
+                    </ManagerQuickAccessChip>
                   </div>
                 </article>
               ))}
@@ -694,9 +819,68 @@ export function ManagerOverviewModule() {
               <Link className="button ghost" href="/dashboard/jobs" scroll={false}>
                 Job Gecmisi
               </Link>
-              <span className="manager-mini-chip">{notificationSummary?.totalCount ?? 0} kampanya</span>
-              <span className="manager-mini-chip">{notificationSummary?.sentCount ?? 0} teslim</span>
-              <span className="manager-mini-chip">{notificationSummary?.failedCount ?? 0} hata</span>
+              <ManagerQuickAccessChip
+                ariaLabel="Bildirim kampanyalarini ac"
+                payload={{
+                  title: "Bildirim kampanyalari",
+                  summary: "Kayitli kampanyalar listeleniyor.",
+                  records:
+                    notificationSummary?.campaigns.map((campaign) => ({
+                      id: campaign.id,
+                      title: campaign.title,
+                      subtitle: formatCampaignType(campaign.type),
+                      description: campaign.message,
+                      meta: [
+                        `${campaign.deliveryCount} hedef`,
+                        `${campaign.sentCount} gonderildi`,
+                        `${campaign.failedCount} basarisiz`
+                      ]
+                    })) ?? [],
+                  links: [{ href: "/dashboard/tracking", label: "Takip" }]
+                }}
+              >
+                {notificationSummary?.totalCount ?? 0} kampanya
+              </ManagerQuickAccessChip>
+              <ManagerQuickAccessChip
+                ariaLabel="Teslim edilen bildirimleri ac"
+                payload={{
+                  title: "Teslim edilen bildirimler",
+                  summary: "Teslim oranlari kampanya bazinda listeleniyor.",
+                  records:
+                    notificationSummary?.campaigns
+                      .filter((campaign) => campaign.sentCount > 0)
+                      .map((campaign) => ({
+                        id: campaign.id,
+                        title: campaign.title,
+                        subtitle: formatCampaignType(campaign.type),
+                        description: campaign.message,
+                        meta: [`${campaign.sentCount} gonderildi`]
+                      })) ?? [],
+                  links: [{ href: "/dashboard/tracking", label: "Takip" }]
+                }}
+              >
+                {notificationSummary?.sentCount ?? 0} teslim
+              </ManagerQuickAccessChip>
+              <ManagerQuickAccessChip
+                ariaLabel="Basarisiz bildirimleri ac"
+                payload={{
+                  title: "Basarisiz bildirimler",
+                  summary: "Hata tasiyan kampanyalar listeleniyor.",
+                  records:
+                    notificationSummary?.campaigns
+                      .filter((campaign) => campaign.failedCount > 0)
+                      .map((campaign) => ({
+                        id: campaign.id,
+                        title: campaign.title,
+                        subtitle: formatCampaignType(campaign.type),
+                        description: campaign.message,
+                        meta: [`${campaign.failedCount} basarisiz`]
+                      })) ?? [],
+                  links: [{ href: "/dashboard/tracking", label: "Takip" }]
+                }}
+              >
+                {notificationSummary?.failedCount ?? 0} hata
+              </ManagerQuickAccessChip>
             </div>
           </div>
 
@@ -717,7 +901,29 @@ export function ManagerOverviewModule() {
                   </div>
                   <p className="manager-feed-text">{campaign.message}</p>
                   <div className="manager-feed-inline">
-                    <span className="manager-mini-chip">{campaign.deliveryCount} hedef</span>
+                    <ManagerQuickAccessChip
+                      ariaLabel={`${campaign.title} hedeflerini ac`}
+                      payload={{
+                        title: `${campaign.title} hedefleri`,
+                        summary: "Kampanya teslimat ozetleri listeleniyor.",
+                        records: [
+                          {
+                            id: campaign.id,
+                            title: campaign.title,
+                            subtitle: formatCampaignType(campaign.type),
+                            description: campaign.message,
+                            meta: [
+                              `${campaign.deliveryCount} hedef`,
+                              `${campaign.sentCount} gonderildi`,
+                              `${campaign.failedCount} basarisiz`
+                            ]
+                          }
+                        ],
+                        links: [{ href: "/dashboard/tracking", label: "Takip" }]
+                      }}
+                    >
+                      {campaign.deliveryCount} hedef
+                    </ManagerQuickAccessChip>
                     <span className="manager-mini-chip">{campaign.sentCount} gonderildi</span>
                     <span className="manager-mini-chip">{campaign.failedCount} basarisiz</span>
                   </div>
@@ -742,12 +948,47 @@ export function ManagerOverviewModule() {
               <span className="manager-mini-chip">
                 {routingSummary ? formatRouteMode(routingSummary.routeMode) : "Hazirlaniyor"}
               </span>
-              <span className="manager-mini-chip">
+              <ManagerQuickAccessChip
+                ariaLabel="Rota duraklarini ac"
+                payload={{
+                  title: "Rota duraklari",
+                  summary: "Onerilen rota duraklari listeleniyor.",
+                  records:
+                    routingSummary?.topStops.map((stop) => ({
+                      id: stop.projectId,
+                      title: stop.projectName,
+                      subtitle: `Sira ${stop.recommendationRank}`,
+                      description:
+                        stop.distanceFromPreviousKm === null
+                          ? "Anchor baslangici"
+                          : `${stop.distanceFromPreviousKm.toFixed(2)} km`,
+                      meta: [`${stop.assignmentCount} ekip`, `${stop.activeSessionCount} aktif`]
+                    })) ?? [],
+                  links: [{ href: "/dashboard/tracking", label: "Takip" }]
+                }}
+              >
                 {routingSummary?.recommendedStopCount ?? 0} durak
-              </span>
-              <span className="manager-mini-chip">
+              </ManagerQuickAccessChip>
+              <ManagerQuickAccessChip
+                ariaLabel="Eksik konumlari ac"
+                payload={{
+                  title: "Eksik konumlar",
+                  summary: "Rota ozetindeki eksik konum sayisi drawer uzerinden izlenir.",
+                  records:
+                    (routingSummary?.skippedProjectCount ?? 0) > 0
+                      ? [
+                          {
+                            id: `${selectedDate}-skipped`,
+                            title: "Eksik konumlu projeler",
+                            description: `${routingSummary?.skippedProjectCount ?? 0} proje rota disinda kaldi.`
+                          }
+                        ]
+                      : [],
+                  links: [{ href: "/dashboard/tracking", label: "Takip" }]
+                }}
+              >
                 {routingSummary?.skippedProjectCount ?? 0} eksik konum
-              </span>
+              </ManagerQuickAccessChip>
             </div>
           </div>
 
@@ -771,8 +1012,42 @@ export function ManagerOverviewModule() {
                       </p>
                     </div>
                     <div className="manager-directory-meta">
-                      <span className="manager-mini-chip">{stop.assignmentCount} ekip</span>
-                      <span className="manager-mini-chip">{stop.activeSessionCount} aktif</span>
+                      <ManagerQuickAccessChip
+                        ariaLabel={`${stop.projectName} ekiplerini ac`}
+                        payload={{
+                          title: `${stop.projectName} rota ekibi`,
+                          summary: "Duraga bagli ekip ve aktif saha sayisi listeleniyor.",
+                          records: [
+                            {
+                              id: stop.projectId,
+                              title: stop.projectName,
+                              subtitle: `Sira ${stop.recommendationRank}`,
+                              description: "Rota duragi ozet kaydi",
+                              meta: [`${stop.assignmentCount} ekip`, `${stop.activeSessionCount} aktif`]
+                            }
+                          ],
+                          links: [{ href: "/dashboard/tracking", label: "Takip" }]
+                        }}
+                      >
+                        {stop.assignmentCount} ekip
+                      </ManagerQuickAccessChip>
+                      <ManagerQuickAccessChip
+                        ariaLabel={`${stop.projectName} aktif saha durumunu ac`}
+                        payload={{
+                          title: `${stop.projectName} aktif saha`,
+                          summary: "Durakta gorunen aktif saha sinyali listeleniyor.",
+                          records: [
+                            {
+                              id: `${stop.projectId}-active`,
+                              title: stop.projectName,
+                              description: `${stop.activeSessionCount} aktif saha`
+                            }
+                          ],
+                          links: [{ href: "/dashboard/tracking", label: "Takip" }]
+                        }}
+                      >
+                        {stop.activeSessionCount} aktif
+                      </ManagerQuickAccessChip>
                     </div>
                   </div>
                 </article>
@@ -781,54 +1056,56 @@ export function ManagerOverviewModule() {
           )}
         </section>
 
-        <section className="manager-surface-card">
-          <div className="manager-section-head compact">
-            <div>
-              <span className="manager-section-kicker">Saha formlari</span>
-              <h3 className="manager-section-title">Gun icindeki form akisi</h3>
+        {dashboardFeatureFlags.fieldForms ? (
+          <section className="manager-surface-card">
+            <div className="manager-section-head compact">
+              <div>
+                <span className="manager-section-kicker">Saha formlari</span>
+                <h3 className="manager-section-title">Gun icindeki form akisi</h3>
+              </div>
+              <div className="manager-inline-actions">
+                <Link className="button ghost" href="/dashboard/forms" scroll={false}>
+                  Formlari Yonet
+                </Link>
+                <Link className="button ghost" href="/dashboard/form-responses" scroll={false}>
+                  Cevaplari Ac
+                </Link>
+                <span className="manager-mini-chip">{fieldFormSummary?.totalCount ?? 0} cevap</span>
+                <span className="manager-mini-chip">
+                  {fieldFormSummary?.uniqueTemplateCount ?? 0} template
+                </span>
+                <span className="manager-mini-chip">
+                  {fieldFormSummary?.uniqueProjectCount ?? 0} proje
+                </span>
+              </div>
             </div>
-            <div className="manager-inline-actions">
-              <Link className="button ghost" href="/dashboard/forms" scroll={false}>
-                Formlari Yonet
-              </Link>
-              <Link className="button ghost" href="/dashboard/form-responses" scroll={false}>
-                Cevaplari Ac
-              </Link>
-              <span className="manager-mini-chip">{fieldFormSummary?.totalCount ?? 0} cevap</span>
-              <span className="manager-mini-chip">
-                {fieldFormSummary?.uniqueTemplateCount ?? 0} template
-              </span>
-              <span className="manager-mini-chip">
-                {fieldFormSummary?.uniqueProjectCount ?? 0} proje
-              </span>
-            </div>
-          </div>
 
-          {!overview && loading ? (
-            <div className="empty">Saha form ozeti yukleniyor.</div>
-          ) : !fieldFormSummary?.recentResponses.length ? (
-            <div className="empty">Secili gunde kaydedilmis saha form cevabi yok.</div>
-          ) : (
-            <div className="manager-feed-list">
-              {fieldFormSummary.recentResponses.slice(0, 5).map((response) => (
-                <article className="manager-feed-row" key={response.id}>
-                  <div className="manager-feed-topline">
-                    <div>
-                      <strong>{response.templateName}</strong>
-                      <p className="muted">{response.projectName} / {response.actor.displayName}</p>
+            {!overview && loading ? (
+              <div className="empty">Saha form ozeti yukleniyor.</div>
+            ) : !fieldFormSummary?.recentResponses.length ? (
+              <div className="empty">Secili gunde kaydedilmis saha form cevabi yok.</div>
+            ) : (
+              <div className="manager-feed-list">
+                {fieldFormSummary.recentResponses.slice(0, 5).map((response) => (
+                  <article className="manager-feed-row" key={response.id}>
+                    <div className="manager-feed-topline">
+                      <div>
+                        <strong>{response.templateName}</strong>
+                        <p className="muted">{response.projectName} / {response.actor.displayName}</p>
+                      </div>
+                      <span className="manager-mini-chip">
+                        {formatDisplayDateTime(response.createdAt)}
+                      </span>
                     </div>
-                    <span className="manager-mini-chip">
-                      {formatDisplayDateTime(response.createdAt)}
-                    </span>
-                  </div>
-                  <p className="manager-feed-text">
-                    {`Versiyon ${response.templateVersionNumber} (${response.templateVersionTitle})`}
-                  </p>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
+                    <p className="manager-feed-text">
+                      {`Versiyon ${response.templateVersionNumber} (${response.templateVersionTitle})`}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        ) : null}
       </div>
 
       <section className="manager-surface-card">

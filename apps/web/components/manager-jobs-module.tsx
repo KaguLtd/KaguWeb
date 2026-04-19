@@ -13,6 +13,7 @@ import { apiFetch, fetchAuthorizedBlob, isAbortError } from "../lib/api";
 import { formatDisplayDateTime } from "../lib/date";
 import { AlertMessage } from "./alert-message";
 import { useAuth } from "./auth-provider";
+import { ManagerQuickAccessChip } from "./manager-quick-access";
 import { ManagerDrawer, ManagerDrawerSection } from "./manager-ui";
 import { CheckCircleIcon, FileIcon, RefreshIcon, TimelineIcon } from "./ui-icons";
 
@@ -320,6 +321,21 @@ export function ManagerJobsModule() {
       restorePrepares: executions.filter((execution) => isBackupRestorePrepareJob(execution.jobName))
         .length
     }),
+    [executions]
+  );
+  const executionRecords = useMemo(
+    () =>
+      executions.map((execution) => ({
+        id: execution.id,
+        title: execution.jobName,
+        subtitle: `${execution.actor?.displayName ?? "Sistem"} / ${execution.triggerSource}`,
+        description: execution.errorMessage ?? formatStatus(execution.status),
+        meta: [
+          formatStatus(execution.status),
+          formatDuration(execution.startedAt, execution.finishedAt),
+          execution.targetDate ?? "Tarih yok"
+        ]
+      })),
     [executions]
   );
 
@@ -664,7 +680,17 @@ export function ManagerJobsModule() {
               <span className="manager-section-kicker">Execution listesi</span>
               <h3 className="manager-section-title">Son job kosulari</h3>
             </div>
-            <span className="manager-mini-chip">{executions.length} kayıt</span>
+            <ManagerQuickAccessChip
+              ariaLabel="Job execution kayitlarini ac"
+              payload={{
+                title: "Job execution kayitlari",
+                summary: "Secili filtreye uyan tum job kosulari listeleniyor.",
+                records: executionRecords,
+                links: [{ href: "/dashboard/jobs", label: "Tum Isler" }]
+              }}
+            >
+              {executions.length} kayıt
+            </ManagerQuickAccessChip>
           </div>
 
             {loading ? (

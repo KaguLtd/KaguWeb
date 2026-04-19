@@ -1,6 +1,6 @@
 "use client";
 
-import { RefObject, useEffect } from "react";
+import { RefObject, useEffect, useRef } from "react";
 
 const FOCUSABLE_SELECTOR = [
   "a[href]",
@@ -42,6 +42,14 @@ export function useDialogBehavior({
   onClose,
   initialFocusRef
 }: UseDialogBehaviorOptions) {
+  const onCloseRef = useRef(onClose);
+  const initialFocusTargetRef = useRef(initialFocusRef);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+    initialFocusTargetRef.current = initialFocusRef;
+  }, [initialFocusRef, onClose]);
+
   useEffect(() => {
     if (!open) {
       return;
@@ -52,20 +60,18 @@ export function useDialogBehavior({
 
     document.body.style.overflow = "hidden";
 
-    const focusInitialElement = () => {
+    const rafId = window.requestAnimationFrame(() => {
       const target =
-        initialFocusRef?.current ??
+        initialFocusTargetRef.current?.current ??
         getFocusableElements(containerRef.current)[0] ??
         containerRef.current;
       target?.focus();
-    };
-
-    const rafId = window.requestAnimationFrame(focusInitialElement);
+    });
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
 
@@ -106,5 +112,5 @@ export function useDialogBehavior({
       window.removeEventListener("keydown", onKeyDown);
       previouslyFocused?.focus();
     };
-  }, [containerRef, initialFocusRef, onClose, open]);
+  }, [containerRef, open]);
 }

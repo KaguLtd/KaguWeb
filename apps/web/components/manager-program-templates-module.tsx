@@ -262,10 +262,11 @@ export function ManagerProgramTemplatesModule() {
 
   async function refreshTemplates() {
     if (!token) {
-      return;
+      return [] as ProgramTemplateSummary[];
     }
     const data = await apiFetch<ProgramTemplateSummary[]>("/program-templates", {}, token);
     setTemplates(data);
+    return data;
   }
 
   async function refreshDetail(id: string) {
@@ -349,6 +350,38 @@ export function ManagerProgramTemplatesModule() {
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Materialize islemi basarisiz.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function deleteTemplate() {
+    if (!token || !selectedTemplateId || !detail) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `"${detail.name}" kaydi silinsin mi? Bu islem yeni ileri tarihli gunluk program eslemelerini durdurur.`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      await apiFetch(`/program-templates/${selectedTemplateId}`, { method: "DELETE" }, token);
+      const nextTemplates = await refreshTemplates();
+      const nextTemplateId =
+        nextTemplates.find((template) => template.id !== selectedTemplateId)?.id ?? "";
+      setSelectedTemplateId(nextTemplateId);
+      setDetail(null);
+      setPreview(null);
+      if (nextTemplateId) {
+        await refreshDetail(nextTemplateId);
+      }
+      setMessage("Tekrarli is silindi. Gunluk programa yeni ileri tarih kayitlari artik otomatik eklenmeyecek.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Tekrarli is silinemedi.");
     } finally {
       setActionLoading(false);
     }
@@ -463,6 +496,7 @@ export function ManagerProgramTemplatesModule() {
       await Promise.all([refreshTemplates(), refreshLookups()]);
       setSelectedTemplateId(response.id);
       await refreshDetail(response.id);
+      setPreview(null);
       setEditorOpen(false);
       setMessage(editorMode === "create" ? "Tekrarlı iş oluşturuldu." : "Tekrarlı iş güncellendi.");
     } catch (error) {
@@ -502,7 +536,7 @@ export function ManagerProgramTemplatesModule() {
           <span className="manager-command-kicker">Template yonetimi</span>
           <h2 className="manager-block-title">Tekrar eden programlari yonetin</h2>
           <p className="manager-block-copy manager-block-copy-visible">
-            Haftalik rota sablonlarini inceleyin, preview alin ve secili gune kontrollu sekilde uygulayin.
+            Tekrar kurallarini tanimlayin; gunluk program ileri tarihleri otomatik doldursun. Preview ve manuel uygulama yalnizca kontrol amaclidir.
           </p>
         </div>
 
@@ -537,7 +571,7 @@ export function ManagerProgramTemplatesModule() {
               Preview
             </button>
             <button className="button" disabled={actionLoading || !selectedTemplateId} onClick={() => void materializeTemplate()} type="button">
-              Materialize
+              Simdi Isle
             </button>
           </div>
           <div className="manager-overview-spotlights">
@@ -678,6 +712,14 @@ export function ManagerProgramTemplatesModule() {
                 type="button"
               >
                 Pasife Al
+              </button>
+              <button
+                className="button danger"
+                disabled={actionLoading || !detail}
+                onClick={() => void deleteTemplate()}
+                type="button"
+              >
+                Sil
               </button>
             </div>
           </div>

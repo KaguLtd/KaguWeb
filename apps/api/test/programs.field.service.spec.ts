@@ -50,6 +50,13 @@ describe("ProgramsService field flows", () => {
     };
   }
 
+  function createProgramTemplatesServiceMock() {
+    return {
+      seedDailyProgramForDate: jest.fn().mockResolvedValue(undefined),
+      seedDailyProgramsForMonth: jest.fn().mockResolvedValue(undefined)
+    };
+  }
+
   it("rejects field entry creation when the actor is not assigned to the program project", async () => {
     const prisma = {
       dailyProgramProject: {
@@ -79,7 +86,8 @@ describe("ProgramsService field flows", () => {
       createNotificationsServiceMock() as never,
       createStorageServiceMock() as never,
       createIdempotencyServiceMock() as never,
-      createLoggerMock() as never
+      createLoggerMock() as never,
+      createProgramTemplatesServiceMock() as never
     );
 
     await expect(
@@ -134,7 +142,8 @@ describe("ProgramsService field flows", () => {
       createNotificationsServiceMock() as never,
       storageService as never,
       createIdempotencyServiceMock() as never,
-      createLoggerMock() as never
+      createLoggerMock() as never,
+      createProgramTemplatesServiceMock() as never
     );
 
     const result = await service.createEntry(
@@ -222,7 +231,8 @@ describe("ProgramsService field flows", () => {
       createNotificationsServiceMock() as never,
       createStorageServiceMock() as never,
       createIdempotencyServiceMock() as never,
-      logger as never
+      logger as never,
+      createProgramTemplatesServiceMock() as never
     );
 
     await expect(
@@ -286,7 +296,8 @@ describe("ProgramsService field flows", () => {
       createNotificationsServiceMock() as never,
       storageService as never,
       createIdempotencyServiceMock() as never,
-      createLoggerMock() as never
+      createLoggerMock() as never,
+      createProgramTemplatesServiceMock() as never
     );
 
     const result = await service.createLocationPing(
@@ -375,7 +386,8 @@ describe("ProgramsService field flows", () => {
       createNotificationsServiceMock() as never,
       storageService as never,
       createIdempotencyServiceMock() as never,
-      createLoggerMock() as never
+      createLoggerMock() as never,
+      createProgramTemplatesServiceMock() as never
     );
 
     const result = await service.createLocationPing(

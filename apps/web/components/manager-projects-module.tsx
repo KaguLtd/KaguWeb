@@ -8,10 +8,12 @@ import {
   TimelineEntry
 } from "@kagu/contracts";
 import { FormEvent, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { apiFetch, fetchAuthorizedBlob } from "../lib/api";
+import { apiFetch } from "../lib/api";
 import { formatDisplayDateTime } from "../lib/date";
+import { openProtectedFile as openProtectedFileWithAuth } from "../lib/protected-file";
 import { AlertMessage } from "./alert-message";
 import { useAuth } from "./auth-provider";
+import { ManagerQuickAccessChip } from "./manager-quick-access";
 import { ManagerDrawer, ManagerDrawerSection } from "./manager-ui";
 import { useDialogBehavior } from "./dialog-behavior";
 import { MapPicker } from "./map-picker";
@@ -105,6 +107,26 @@ function draftFromProject(project: ProjectSummary): ProjectDraft {
   };
 }
 
+function buildTimelineQuickRecord(entry: ProjectTimelineEntry) {
+  return {
+    id: entry.id,
+    title: entry.actor.displayName,
+    subtitle: formatDisplayDateTime(entry.createdAt),
+    description:
+      entry.entryType === "FIELD_FORM_RESPONSE"
+        ? `${entry.formResponse?.templateName ?? "Form"} v${entry.formResponse?.templateVersionNumber ?? 1}`
+        : entry.note?.trim() || entryTypeLabel(entry.entryType),
+    meta: [entryTypeLabel(entry.entryType), `${entry.files.length} dosya`],
+    files: entry.files.map((file) => ({
+      id: file.id,
+      name: file.originalName,
+      extension: file.extension,
+      downloadPath: file.downloadUrl,
+      previewPath: file.inlineUrl ?? undefined
+    }))
+  };
+}
+
 export function ManagerProjectsModule() {
   const { token } = useAuth();
   const [statusFilter, setStatusFilter] = useState<ProjectStatusFilter>("active");
@@ -192,10 +214,24 @@ export function ManagerProjectsModule() {
     [timeline]
   );
 
+  const fieldNoteEntries = useMemo(
+    () =>
+      timeline.filter(
+        (entry) =>
+          entry.actor.role === "FIELD" &&
+          (Boolean(entry.note?.trim()) || entry.files.length > 0)
+      ),
+    [timeline]
+  );
+
   const movementEntries = useMemo(
     () =>
       timeline.filter(
         (entry) =>
+          !(
+            entry.actor.role === "FIELD" &&
+            (Boolean(entry.note?.trim()) || entry.files.length > 0)
+          ) &&
           entry.entryType !== "MANAGER_NOTE" &&
           entry.entryType !== "FIELD_NOTE" &&
           !entry.note?.trim()
@@ -495,24 +531,24 @@ export function ManagerProjectsModule() {
     if (!token) {
       return;
     }
-    const { objectUrl, filename } = await fetchAuthorizedBlob(path, token);
-    if (mode === "preview") {
-      if (previewObjectUrlRef.current) {
-        URL.revokeObjectURL(previewObjectUrlRef.current);
-      }
-      previewObjectUrlRef.current = objectUrl;
-      setPreviewUrl(objectUrl);
-      setPreviewName(filename);
-      return;
-    }
 
-    const link = document.createElement("a");
-    link.href = objectUrl;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    try {
+      await openProtectedFileWithAuth({
+        mode,
+        path,
+        token,
+        onPreview: ({ filename, objectUrl }) => {
+          if (previewObjectUrlRef.current) {
+            URL.revokeObjectURL(previewObjectUrlRef.current);
+          }
+          previewObjectUrlRef.current = objectUrl;
+          setPreviewUrl(objectUrl);
+          setPreviewName(filename);
+        }
+      });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Dosya acilamadi.");
+    }
   }
 
   function closePreview() {
@@ -522,6 +558,35 @@ export function ManagerProjectsModule() {
     }
     setPreviewUrl(null);
     setPreviewName(null);
+  }
+
+  function renderTimelineFileRow(file: ProjectTimelineEntry["files"][number]) {
+    return (
+      <div className="file-row" key={file.id}>
+        <div>
+          <strong>{file.originalName}</strong>
+          <div className="tiny muted">{file.extension}</div>
+        </div>
+        <div className="toolbar-tight">
+          {file.inlineUrl ? (
+            <button
+              className="button ghost"
+              onClick={() => void openProtectedFile(file.inlineUrl!, "preview")}
+              type="button"
+            >
+              Onizle
+            </button>
+          ) : null}
+          <button
+            className="button ghost"
+            onClick={() => void openProtectedFile(file.downloadUrl, "download")}
+            type="button"
+          >
+            Indir
+          </button>
+        </div>
+      </div>
+    );
   }
 
   const draftLatitude = parseNumberInput(projectDraft.latitude, null);
@@ -553,6 +618,21 @@ export function ManagerProjectsModule() {
   ];
   const statusFilterLabel =
     statusFilter === "active" ? "Aktif" : statusFilter === "archived" ? "Arşiv" : "Tümü";
+  const projectListRecords = useMemo(
+    () =>
+      projects.map((project) => ({
+        id: project.id,
+        title: project.name,
+        subtitle: project.customer?.name ?? project.locationLabel ?? "",
+        description: `${project.mainFileCount} dosya / ${project.timelineEntryCount ?? 0} hareket`,
+        meta: [
+          project.isArchived ? "Arsiv" : "Aktif",
+          `${project.mainFileCount} dosya`,
+          `${project.timelineEntryCount ?? 0} hareket`
+        ]
+      })),
+    [projects]
+  );
 
   return (
     <>
@@ -673,9 +753,17 @@ export function ManagerProjectsModule() {
                 <span className="manager-section-kicker">Tüm projeler</span>
                 <h3 className="manager-section-title">Çalışma listesi</h3>
               </div>
-              <span className="manager-mini-chip">
+              <ManagerQuickAccessChip
+                ariaLabel="Filtrelenmis projeleri ac"
+                payload={{
+                  title: "Filtrelenmis projeler",
+                  summary: "Mevcut filtreye uyan proje kayitlari listeleniyor.",
+                  records: projectListRecords,
+                  links: [{ href: "/dashboard/projects", label: "Projeler" }]
+                }}
+              >
                 {loading ? "Yükleniyor..." : `${projects.length} proje`}
-              </span>
+              </ManagerQuickAccessChip>
             </div>
 
             {!projects.length ? (
@@ -709,8 +797,47 @@ export function ManagerProjectsModule() {
                         {project.locationLabel ? ` / ${project.locationLabel}` : ""}
                       </p>
                       <div className="manager-directory-meta">
-                        <span className="manager-mini-chip">{project.mainFileCount} dosya</span>
-                        <span className="manager-mini-chip">{project.timelineEntryCount ?? 0} hareket</span>
+                        <ManagerQuickAccessChip
+                          ariaLabel={`${project.name} dosyalarini ac`}
+                          payload={{
+                            title: `${project.name} ana dosyalari`,
+                            summary: "Secili projede yuklenmis ana dosyalar listeleniyor.",
+                            records:
+                              focusProject?.id === project.id
+                                ? mainFiles.map((file) => ({
+                                    id: file.id,
+                                    title: file.title,
+                                    subtitle: `${file.versionCount} surum`,
+                                    description: "Proje ana dosyasi",
+                                    files: [
+                                      {
+                                        id: file.id,
+                                        name: file.title,
+                                        downloadPath: file.latestVersion.downloadUrl,
+                                        previewPath: file.latestVersion.inlineUrl ?? undefined
+                                      }
+                                    ]
+                                  }))
+                                : [],
+                            links: [{ href: "/dashboard/projects", label: "Projeler" }]
+                          }}
+                        >
+                          {project.mainFileCount} dosya
+                        </ManagerQuickAccessChip>
+                        <ManagerQuickAccessChip
+                          ariaLabel={`${project.name} hareketlerini ac`}
+                          payload={{
+                            title: `${project.name} hareketleri`,
+                            summary: "Secili proje icin timeline kayitlari listeleniyor.",
+                            records:
+                              focusProject?.id === project.id
+                                ? timeline.map(buildTimelineQuickRecord)
+                                : [],
+                            links: [{ href: "/dashboard/projects", label: "Projeler" }]
+                          }}
+                        >
+                          {project.timelineEntryCount ?? 0} hareket
+                        </ManagerQuickAccessChip>
                         <span className="manager-mini-chip">{formatDisplayDateTime(project.updatedAt)}</span>
                       </div>
                     </div>
@@ -850,7 +977,19 @@ export function ManagerProjectsModule() {
             <ManagerDrawerSection
               eyebrow="Notlar"
               title="Proje notları"
-              meta={<span className="manager-mini-chip">{detailLoading ? "Yükleniyor..." : noteEntries.length}</span>}
+              meta={
+                <ManagerQuickAccessChip
+                  ariaLabel="Proje notlarini ac"
+                  payload={{
+                    title: "Proje notlari",
+                    summary: "Proje timeline icindeki not kayitlari listeleniyor.",
+                    records: noteEntries.map(buildTimelineQuickRecord),
+                    links: [{ href: "/dashboard/projects", label: "Projeler" }]
+                  }}
+                >
+                  {detailLoading ? "Yükleniyor..." : noteEntries.length}
+                </ManagerQuickAccessChip>
+              }
             >
               {!noteEntries.length ? (
                 <div className="empty">Proje notu bulunmuyor.</div>
@@ -881,12 +1020,60 @@ export function ManagerProjectsModule() {
             </ManagerDrawerSection>
 
             <ManagerDrawerSection
+              eyebrow="Saha akisi"
+              title="Saha notlari ve dosyalari"
+              meta={
+                <ManagerQuickAccessChip
+                  ariaLabel="Saha notlari ve dosyalarini ac"
+                  payload={{
+                    title: "Saha notlari ve dosyalari",
+                    summary: "Saha kullanicilarinin biraktigi not ve ekler listeleniyor.",
+                    records: fieldNoteEntries.map(buildTimelineQuickRecord),
+                    links: [{ href: "/dashboard/projects", label: "Projeler" }]
+                  }}
+                >
+                  {detailLoading ? "Yukleniyor..." : fieldNoteEntries.length}
+                </ManagerQuickAccessChip>
+              }
+            >
+              {!fieldNoteEntries.length ? (
+                <div className="empty">Sahadan gelen not veya dosya kaydi bulunmuyor.</div>
+              ) : (
+                <div className="stack">
+                  {fieldNoteEntries.slice(0, 20).map((entry) => (
+                    <article className="manager-overview-note" key={entry.id}>
+                      <div className="manager-entity-headline">
+                        <div className="manager-table-primary">
+                          <strong>{entry.actor.displayName}</strong>
+                          <span>{entryTypeLabel(entry.entryType)}</span>
+                        </div>
+                        <span className="manager-mini-chip">{formatDisplayDateTime(entry.createdAt)}</span>
+                      </div>
+                      <p>{entry.note?.trim() || "Bu kayitta not yok, yalnizca dosya eklendi."}</p>
+                      {entry.files.length ? (
+                        <div className="file-list">{entry.files.map(renderTimelineFileRow)}</div>
+                      ) : null}
+                    </article>
+                  ))}
+                </div>
+              )}
+            </ManagerDrawerSection>
+
+            <ManagerDrawerSection
               eyebrow="Hareketler"
               title="Proje hareketleri"
               meta={
-                <span className="manager-mini-chip">
+                <ManagerQuickAccessChip
+                  ariaLabel="Proje hareketlerini ac"
+                  payload={{
+                    title: "Proje hareketleri",
+                    summary: "Not disi timeline ve sistem hareketleri listeleniyor.",
+                    records: movementEntries.map(buildTimelineQuickRecord),
+                    links: [{ href: "/dashboard/projects", label: "Projeler" }]
+                  }}
+                >
                   {detailLoading ? "Yükleniyor..." : movementEntries.length}
-                </span>
+                </ManagerQuickAccessChip>
               }
             >
               {!movementEntries.length ? (
@@ -926,7 +1113,32 @@ export function ManagerProjectsModule() {
             <ManagerDrawerSection
               eyebrow="Dosyalar"
               title="Ana dosyalar"
-              meta={<span className="manager-mini-chip">{mainFiles.length} dosya</span>}
+              meta={
+                <ManagerQuickAccessChip
+                  ariaLabel="Ana dosyalari ac"
+                  payload={{
+                    title: "Ana dosyalar",
+                    summary: "Secili projeye bagli ana dosyalar listeleniyor.",
+                    records: mainFiles.map((file) => ({
+                      id: file.id,
+                      title: file.title,
+                      subtitle: `${file.versionCount} surum`,
+                      description: "Proje ana dosyasi",
+                      files: [
+                        {
+                          id: file.id,
+                          name: file.title,
+                          downloadPath: file.latestVersion.downloadUrl,
+                          previewPath: file.latestVersion.inlineUrl ?? undefined
+                        }
+                      ]
+                    })),
+                    links: [{ href: "/dashboard/projects", label: "Projeler" }]
+                  }}
+                >
+                  {mainFiles.length} dosya
+                </ManagerQuickAccessChip>
+              }
             >
               <form className="stack" onSubmit={uploadMainFiles}>
                 <input

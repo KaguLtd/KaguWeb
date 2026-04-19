@@ -123,7 +123,8 @@ if ($LASTEXITCODE -ne 0) {
   throw "Database existence check failed with code $LASTEXITCODE"
 }
 
-if ($databaseExists.Trim() -ne '1') {
+$databaseExistsValue = if ($null -eq $databaseExists) { '' } else { [string]$databaseExists }
+if ($databaseExistsValue.Trim() -ne '1') {
   Invoke-PgCommand 'createdb.exe' @('-h', $pgHost, '-p', "$port", '-U', $dbUser, $dbName)
 }
 

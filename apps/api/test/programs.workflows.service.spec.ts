@@ -57,6 +57,13 @@ describe("ProgramsService workflows", () => {
     };
   }
 
+  function createProgramTemplatesServiceMock() {
+    return {
+      seedDailyProgramForDate: jest.fn().mockResolvedValue(undefined),
+      seedDailyProgramsForMonth: jest.fn().mockResolvedValue(undefined)
+    };
+  }
+
   it("rejects assignment lists that contain invalid field users", async () => {
     const prisma = {
       dailyProgramProject: {
@@ -89,7 +96,8 @@ describe("ProgramsService workflows", () => {
       createNotificationsServiceMock() as never,
       createStorageServiceMock() as never,
       createIdempotencyServiceMock() as never,
-      createLoggerMock() as never
+      createLoggerMock() as never,
+      createProgramTemplatesServiceMock() as never
     );
 
     await expect(
@@ -180,7 +188,8 @@ describe("ProgramsService workflows", () => {
       notificationsService as never,
       storageService as never,
       createIdempotencyServiceMock() as never,
-      createLoggerMock() as never
+      createLoggerMock() as never,
+      createProgramTemplatesServiceMock() as never
     );
 
     const result = await service.assignUsers(
@@ -273,7 +282,8 @@ describe("ProgramsService workflows", () => {
       createNotificationsServiceMock() as never,
       createStorageServiceMock() as never,
       createIdempotencyServiceMock() as never,
-      logger as never
+      logger as never,
+      createProgramTemplatesServiceMock() as never
     );
 
     await expect(
@@ -343,7 +353,8 @@ describe("ProgramsService workflows", () => {
       createNotificationsServiceMock() as never,
       storageService as never,
       createIdempotencyServiceMock() as never,
-      createLoggerMock() as never
+      createLoggerMock() as never,
+      createProgramTemplatesServiceMock() as never
     );
 
     const result = await service.workStart(
@@ -454,7 +465,8 @@ describe("ProgramsService workflows", () => {
       createNotificationsServiceMock() as never,
       createStorageServiceMock() as never,
       createIdempotencyServiceMock() as never,
-      logger as never
+      logger as never,
+      createProgramTemplatesServiceMock() as never
     );
 
     await expect(
@@ -524,7 +536,8 @@ describe("ProgramsService workflows", () => {
       createNotificationsServiceMock() as never,
       storageService as never,
       createIdempotencyServiceMock() as never,
-      createLoggerMock() as never
+      createLoggerMock() as never,
+      createProgramTemplatesServiceMock() as never
     );
 
     const result = await service.workEnd(

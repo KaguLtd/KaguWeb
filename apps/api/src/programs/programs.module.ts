@@ -1,12 +1,13 @@
 import { Module } from "@nestjs/common";
 import { IdempotencyModule } from "../common/idempotency/idempotency.module";
 import { NotificationsModule } from "../notifications/notifications.module";
+import { ProgramTemplatesModule } from "../program-templates/program-templates.module";
 import { ProjectsModule } from "../projects/projects.module";
 import { ProgramsController } from "./programs.controller";
 import { ProgramsService } from "./programs.service";
 
 @Module({
-  imports: [IdempotencyModule, ProjectsModule, NotificationsModule],
+  imports: [IdempotencyModule, ProjectsModule, NotificationsModule, ProgramTemplatesModule],
   controllers: [ProgramsController],
   providers: [ProgramsService],
   exports: [ProgramsService]

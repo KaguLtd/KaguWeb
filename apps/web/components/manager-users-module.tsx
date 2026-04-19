@@ -6,6 +6,7 @@ import { apiFetch } from "../lib/api";
 import { formatDisplayDate } from "../lib/date";
 import { AlertMessage } from "./alert-message";
 import { useAuth } from "./auth-provider";
+import { ManagerQuickAccessChip, QuickAccessRecord } from "./manager-quick-access";
 import { ManagerDrawer, ManagerDrawerSection } from "./manager-ui";
 import { DeviceIcon, KeyIcon, PowerIcon, UsersIcon } from "./ui-icons";
 
@@ -43,6 +44,20 @@ function roleLabel(role: UserRole) {
   return role === "FIELD" ? "Saha" : "Yonetici";
 }
 
+function buildUserRecord(user: ManagerUserSummary): QuickAccessRecord {
+  return {
+    id: user.id,
+    title: user.displayName,
+    subtitle: `@${user.username}`,
+    description: `${roleLabel(user.role)} / ${user.isActive ? "Aktif" : "Pasif"}`,
+    meta: [
+      `${user.assignmentCount ?? 0} atama`,
+      `${user.openSessionCount ?? 0} oturum`,
+      `${user.subscriptionCount ?? 0} cihaz`
+    ]
+  };
+}
+
 export function ManagerUsersModule() {
   const { token } = useAuth();
   const [users, setUsers] = useState<ManagerUserSummary[]>([]);
@@ -70,7 +85,31 @@ export function ManagerUsersModule() {
   const totalActive = users.filter((user) => user.isActive).length;
   const totalField = users.filter((user) => user.role === "FIELD").length;
   const totalManagers = users.filter((user) => user.role === "MANAGER").length;
+  const totalDevices = users.reduce((sum, user) => sum + (user.subscriptionCount ?? 0), 0);
   const previewUser = selectedUser ?? users.find((user) => user.id === selectedUserId) ?? users[0] ?? null;
+  const activeUserRecords = useMemo(
+    () => users.filter((user) => user.isActive).map(buildUserRecord),
+    [users]
+  );
+  const fieldUserRecords = useMemo(
+    () => users.filter((user) => user.role === "FIELD").map(buildUserRecord),
+    [users]
+  );
+  const managerUserRecords = useMemo(
+    () => users.filter((user) => user.role === "MANAGER").map(buildUserRecord),
+    [users]
+  );
+  const deviceRecords = useMemo(
+    () =>
+      users
+        .filter((user) => (user.subscriptionCount ?? 0) > 0)
+        .map((user) => ({
+          ...buildUserRecord(user),
+          description: `${user.subscriptionCount ?? 0} cihaz baglantisi`,
+          meta: [`${user.subscriptionCount ?? 0} cihaz`, `${user.openSessionCount ?? 0} oturum`]
+        })),
+    [users]
+  );
   const userSignalCards = [
     {
       label: "Aktif hesap",
@@ -86,7 +125,7 @@ export function ManagerUsersModule() {
     },
     {
       label: "Cihaz kaydi",
-      value: `${users.reduce((sum, user) => sum + (user.subscriptionCount ?? 0), 0)}`,
+      value: `${totalDevices}`,
       detail: "Push ve cihaz baglanti toplami",
       icon: DeviceIcon
     }
@@ -410,17 +449,53 @@ export function ManagerUsersModule() {
           </article>
           <article className="manager-stat-card">
             <span>Aktif hesap</span>
-            <strong>{loading ? "..." : totalActive}</strong>
+            <strong>
+              <ManagerQuickAccessChip
+                ariaLabel="Aktif hesaplari ac"
+                payload={{
+                  title: "Aktif hesaplar",
+                  summary: "Su an aktif durumdaki hesaplar listeleniyor.",
+                  records: activeUserRecords,
+                  links: [{ href: "/dashboard/users", label: "Kullanicilar" }]
+                }}
+              >
+                {loading ? "..." : totalActive}
+              </ManagerQuickAccessChip>
+            </strong>
             <small>Calisabilir kullanicilar</small>
           </article>
           <article className="manager-stat-card">
             <span>Saha</span>
-            <strong>{loading ? "..." : totalField}</strong>
+            <strong>
+              <ManagerQuickAccessChip
+                ariaLabel="Saha kullanicilarini ac"
+                payload={{
+                  title: "Saha kullanicilari",
+                  summary: "Mobil operasyon rolundeki hesaplar listeleniyor.",
+                  records: fieldUserRecords,
+                  links: [{ href: "/dashboard/users", label: "Kullanicilar" }]
+                }}
+              >
+                {loading ? "..." : totalField}
+              </ManagerQuickAccessChip>
+            </strong>
             <small>Mobil saha rolunde</small>
           </article>
           <article className="manager-stat-card">
             <span>Yonetici</span>
-            <strong>{loading ? "..." : totalManagers}</strong>
+            <strong>
+              <ManagerQuickAccessChip
+                ariaLabel="Yonetici hesaplarini ac"
+                payload={{
+                  title: "Yonetici hesaplari",
+                  summary: "Panel operatoru rolundeki hesaplar listeleniyor.",
+                  records: managerUserRecords,
+                  links: [{ href: "/dashboard/users", label: "Kullanicilar" }]
+                }}
+              >
+                {loading ? "..." : totalManagers}
+              </ManagerQuickAccessChip>
+            </strong>
             <small>Panel operatorleri</small>
           </article>
         </section>
@@ -432,9 +507,17 @@ export function ManagerUsersModule() {
                 <span className="manager-section-kicker">Kullanici listesi</span>
                 <h3 className="manager-section-title">Ekip rosteri</h3>
               </div>
-              <span className="manager-mini-chip">
+              <ManagerQuickAccessChip
+                ariaLabel="Filtrelenmis hesaplari ac"
+                payload={{
+                  title: "Filtrelenmis hesaplar",
+                  summary: "Mevcut filtreye uyan tum hesaplar listeleniyor.",
+                  records: users.map(buildUserRecord),
+                  links: [{ href: "/dashboard/users", label: "Kullanicilar" }]
+                }}
+              >
                 {loading ? "Yukleniyor..." : `${users.length} hesap`}
-              </span>
+              </ManagerQuickAccessChip>
             </div>
 
             {!users.length ? (
@@ -467,6 +550,17 @@ export function ManagerUsersModule() {
                         {user.assignmentCount ?? 0} aktif atama / {user.openSessionCount ?? 0} acik oturum / {user.subscriptionCount ?? 0} cihaz
                       </p>
                       <div className="manager-directory-meta">
+                        <ManagerQuickAccessChip
+                          ariaLabel={`${user.displayName} atamalarini ve cihazlarini ac`}
+                          payload={{
+                            title: `${user.displayName} hesap ozeti`,
+                            summary: "Secili kullanicinin atama, oturum ve cihaz baglantilari ozetleniyor.",
+                            records: [buildUserRecord(user)],
+                            links: [{ href: "/dashboard/users", label: "Kullanicilar" }]
+                          }}
+                        >
+                          {`${user.assignmentCount ?? 0} atama`}
+                        </ManagerQuickAccessChip>
                         <span className="manager-mini-chip">{formatDisplayDate(user.createdAt)}</span>
                       </div>
                     </div>
